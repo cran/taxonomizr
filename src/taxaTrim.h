@@ -1,0 +1,2 @@
+void taxaTrim(char **files);
+
