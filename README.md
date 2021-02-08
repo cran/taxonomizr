@@ -16,6 +16,7 @@ The major functions are:
 More specialized functions are:
  * `getId`: convert a biological name to taxonomic ID
  * `getAccessions`: find accessions for a given taxonomic ID
+ * `makeNewick`: generate a Newick formatted tree from taxonomic output
 
 And a simple use case might look like (see below for more details):
 
@@ -38,7 +39,7 @@ The package is on CRAN, so it should install with a simple:
 ```r
 install.packages("taxonomizr")
 ```
-If you want the development version directly from github, use the [<code>devtools</code>](https://github.com/hadley/devtools) library and run:
+If you want the development version directly from github, use the [<code>devtools</code>](https://github.com/r-lib/devtools) library and run:
 
 ```r
 devtools::install_github("sherrillmix/taxonomizr")
@@ -125,9 +126,29 @@ prepareDatabase('accessionTaxa.sql')
 
 ## Assigning taxonomy
 
-### Finding taxonomy for NCBI accession numbers
+### Producing accession numbers
 
-NCBI accession numbers are often obtained when doing a BLAST search (usually the second column of output from blastn, blastx, blastp, ...). So to identify a taxon for a given sequence you would blast it against e.g. the NCBI nt database and load the results into R.
+NCBI accession numbers are often obtained when doing a BLAST search (usually the second column of output from blastn, blastx, blastp, ...). For example the output might look like:
+
+```
+read1   gi|326539903|gb|CP002582.1|     69.68   1745    448     69      3       1702    3517898 3519606 3e-169  608
+read2   gi|160426828|gb|CP000885.1|     68.46   1763    452     82      3       1711    1790367 1788655 4e-140  511
+...
+```
+
+So to identify a taxon for a given sequence you would blast it against e.g. the NCBI nt database and load the results into R. For NCBI databases, the accession number is often the 4th item in the `|` (pipe) separated reference field (often the second column in a tab separated result). For example, the `CP002582.1` in the gi|326539903|gb|**CP002582.1**| above.
+
+So just as an example, reading in blast results might look something like:
+
+
+```r
+blastResults<-read.table('XXXX.blast',header=FALSE,stringsAsFactors=FALSE)
+#grab the 4th |-separated field from the reference name in the second column
+accessions<-sapply(strsplit(blastResults[,2],'\\|'),'[',4)
+```
+
+
+### Finding taxonomy for NCBI accession numbers
 
 Now we are ready to convert NCBI accession numbers to taxonomic IDs. For example, to find the taxonomic IDs associated with NCBI accession numbers "LN847353.1" and "AL079352.3":
 
@@ -292,9 +313,41 @@ getAccessions(3702,'accessionTaxa.sql',limit=10)
 ## 10 3702  X52320.1
 ```
 
+### Convert taxonomy to Newick tree
+
+This is probably only useful in a few specific cases but a convenience function `makeNewick` to convert taxonomy into a Newick tree is included. The function takes a matrix giving with columns corresponding to taxonomic categories and rows different to taxonomic assignments, e.g. the output from `condenseTaxa` or `getTaxonomy` and reduces it to a Newick formatted tree. For example:
+
+
+
+
+```r
+taxa
+```
+
+```
+##      [,1]        [,2]       [,3]       [,4]       [,5]        [,6]   
+## [1,] "Eukaryota" "Chordata" "Mammalia" "Primates" "Hominidae" "Homo" 
+## [2,] "Eukaryota" "Chordata" "Mammalia" "Primates" "Hominidae" "Pan"  
+## [3,] "Eukaryota" "Chordata" "Mammalia" NA         "Cervidae"  "Alces"
+```
+
+```r
+makeNewick(taxa)
+```
+
+```
+## [1] "((((((Homo,Pan)Hominidae)Primates,((Alces)Cervidae)_)Mammalia)Chordata)Eukaryota)"
+```
+
+
 ## Changelog
 
-### v0.5.2
+### v0.5.3
+  * Fix named vector bug in `accessionToTaxa`
+  * Add `makeNewick` function
+  * Deal with default 60 second timeout for downloads in R
+
+### v0.5.3
   * Remove `nucl_est` and `nucl_gss` from defaults since NCBI folded them into `nucl_gb` and removed
   * Squash R:devel bug
 

@@ -1,4 +1,4 @@
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  library(taxonomizr)
 #  #note this will require a lot of hard drive space, bandwidth and time to process all the data from NCBI
 #  prepareDatabase('accessionTaxa.sql')
@@ -6,72 +6,84 @@
 #  ids<-accessionToTaxa(blastAccessions,'accessionTaxa.sql')
 #  getTaxonomy(ids,'accessionTaxa.sql')
 
-## ---- eval=FALSE---------------------------------------------------------
+## ---- eval=FALSE--------------------------------------------------------------
 #  install.packages("taxonomizr")
 
-## ---- eval=FALSE---------------------------------------------------------
+## ---- eval=FALSE--------------------------------------------------------------
 #  devtools::install_github("sherrillmix/taxonomizr")
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 library(taxonomizr)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  prepareDatabase('accessionTaxa.sql')
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  prepareDatabase('accessionTaxa.sql')
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
+#  blastResults<-read.table('XXXX.blast',header=FALSE,stringsAsFactors=FALSE)
+#  #grab the 4th |-separated field from the reference name in the second column
+#  accessions<-sapply(strsplit(blastResults[,2],'\\|'),'[',4)
+
+## ----eval=FALSE---------------------------------------------------------------
 #  taxaId<-accessionToTaxa(c("LN847353.1","AL079352.3"),"accessionTaxa.sql")
 #  print(taxaId)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  getTaxonomy(taxaId,'accessionTaxa.sql')
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  taxaId<-accessionToTaxa(c("LN847353","AL079352"),"accessionTaxa.sql")
 #  print(taxaId)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  taxaId<-accessionToTaxa(c("LN847353","AL079352"),"accessionTaxa.sql",version='base')
 #  print(taxaId)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  taxaId<-getId(c('Homo sapiens','Bos taurus','Homo','Alces alces'),'accessionTaxa.sql')
 #  print(taxaId)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  taxa<-getTaxonomy(taxaId,'accessionTaxa.sql')
 #  print(taxa)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  condenseTaxa(taxa)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  groupings<-c('read1','read2','read1','read2')
 #  condenseTaxa(taxa,groupings)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  read.accession2taxid(list.files('.','accession2taxid.gz$'),'accessionTaxa.sql',indexTaxa=TRUE,overwrite=TRUE)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  getAccessions(3702,'accessionTaxa.sql',limit=10)
 
-## ----eval=FALSE----------------------------------------------------------
+## ----echo=FALSE---------------------------------------------------------------
+taxa<-matrix(c('Eukaryota','Chordata','Mammalia','Primates','Hominidae','Homo','Eukaryota','Chordata','Mammalia','Primates','Hominidae','Pan','Eukaryota','Chordata','Mammalia',NA,'Cervidae','Alces'),nrow=3,byrow=TRUE)
+
+## -----------------------------------------------------------------------------
+taxa
+makeNewick(taxa)
+
+## ----eval=FALSE---------------------------------------------------------------
 #  getNamesAndNodes()
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  #this is a big download
 #  getAccession2taxid()
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  #this is a big download
 #  getAccession2taxid(types='prot')
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  read.names.sql('names.dmp','accessionTaxa.sql')
 #  read.nodes.sql('nodes.dmp','accessionTaxa.sql')
 
-## ----eval=FALSE----------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  read.accession2taxid(list.files('.','accession2taxid.gz$'),'accessionTaxa.sql')
 
