@@ -57,6 +57,9 @@ library(taxonomizr)
 #  condenseTaxa(taxa,groupings)
 
 ## ----eval=FALSE---------------------------------------------------------------
+#  getRawTaxonomy(c(9606,9913),'accessionTaxa.sql')
+
+## ----eval=FALSE---------------------------------------------------------------
 #  read.accession2taxid(list.files('.','accession2taxid.gz$'),'accessionTaxa.sql',indexTaxa=TRUE,overwrite=TRUE)
 
 ## ----eval=FALSE---------------------------------------------------------------

@@ -20,7 +20,7 @@
 #'     stop('This is a stop to make sure no one downloads a bunch of data unintentionally')
 #'
 #'   prepareDatabase('accessionTaxa.sql')
-#'   blastAccessions<-c("Z17430.1","Z17429.1","X62402.1") 
+#'   blastAccessions<-c("Z17430.1","Z17429.1","X62402.1")
 #'   ids<-accessionToTaxa(blastAccessions,'accessionTaxa.sql')
 #'   getTaxonomy(ids,'accessionTaxa.sql')
 #' }
@@ -273,7 +273,7 @@ trimTaxa<-function(inFile,outFile,desiredCols=c(2,3)){
 #' @param taxaFiles a string or vector of strings giving the path(s) to files to be read in
 #' @param sqlFile a string giving the path where the output SQLite file should be saved
 #' @param vocal if TRUE output status messages
-#' @param extraSqlCommand for advanced use. A string giving a command to be called on the SQLite databse before loading data e.g. "pragma temp_store = 2;" to keep all temp files in memory (don't do this unless you have a lot (>100 Gb) of RAM)
+#' @param extraSqlCommand for advanced use. A string giving a command to be called on the SQLite database before loading data e.g. "pragma temp_store = 2;" to keep all temp files in memory (don't do this unless you have a lot (>100 Gb) of RAM)
 #' @param indexTaxa if TRUE add an index for taxa ID. This would only be necessary if you want to look up accessions by taxa ID e.g. \code{\link{getAccessions}}
 #' @param overwrite If TRUE, delete accessionTaxa table in database if present and regenerate
 #' @return TRUE if sucessful
@@ -457,6 +457,18 @@ getParentNodes<-function(ids,sqlFile='nameNode.sqlite'){
   return(taxaDf[,c('name','parent','rank')])
 }
 
+checkDownloadMd5<-function(url,file,errorIfNoMd5=FALSE){
+  md5<-sprintf('%s.md5',url)
+  tmp<-tempfile()
+  check<-tryCatch(utils::download.file(md5,tmp,mode='wb'),warning=function(xx)1,error=function(xx)1)
+  if(check!=0){
+    if(errorIfNoMd5)stop("Problem downloading md5 ",md5)
+    else return(TRUE)
+  }
+  hash<-strsplit(readLines(tmp),' ')[[1]][1]
+  return(hash==tools::md5sum(file))
+}
+
 
 #' Get taxonomic ranks for a taxa
 #'
@@ -552,11 +564,112 @@ getTaxonomy<-function (ids,sqlFile='nameNode.sqlite',..., desiredTaxa=c('superki
       selector<-parents[,'rank']==ii&!is.na(parents[,'rank'])
       taxa[which(stillWorking)[selector],ii]<-parents[selector,'name']
     }
-    rep<-rep+1 
+    rep<-rep+1
     currentIds[stillWorking]<-parents$parent
     if(rep>200)stop('Found cycle in taxonomy')
   }
   out<-taxa[format(ids,scientific=FALSE),,drop=FALSE]
+  return(out)
+}
+
+#' Get all taxonomy for a taxa
+#'
+#' Take NCBI taxa IDs and get all taxonomic ranks from name and node SQLite database. Ranks that occur more than once are made unique with a postfix through \code{link{make.unique}}
+#'
+#' @param ids a vector of ids to find taxonomy for
+#' @param sqlFile a string giving the path to a SQLite file containing names and nodes tables
+#' @return a list of vectors with each element containing a vector of taxonomic strings with names corresponding to the taxonomic rank
+#' @export
+#' @seealso \code{\link{read.nodes.sql}}, \code{\link{read.names.sql}}
+#' @examples
+#' sqlFile<-tempfile()
+#' namesText<-c(
+#'   "1\t|\tall\t|\t\t|\tsynonym\t|",
+#'   "1\t|\troot\t|\t\t|\tscientific name\t|",
+#'   "2\t|\tBacteria\t|\tBacteria <prokaryotes>\t|\tscientific name\t|",
+#'   "2\t|\tMonera\t|\tMonera <Bacteria>\t|\tin-part\t|",
+#'   "2\t|\tProcaryotae\t|\tProcaryotae <Bacteria>\t|\tin-part\t|",
+#'   "9606\t|\tHomo sapiens\t|\t\t|\tscientific name",
+#'   "9605\t|\tHomo\t|\t\t|\tscientific name",
+#'   "207598\t|\tHomininae\t|\t\t|\tscientific name",
+#'   "9604\t|\tHominidae\t|\t\t|\tscientific name",
+#'   "314295\t|\tHominoidea\t|\t\t|\tscientific name",
+#'   "9526\t|\tCatarrhini\t|\t\t|\tscientific name",
+#'   "314293\t|\tSimiiformes\t|\t\t|\tscientific name",
+#'   "376913\t|\tHaplorrhini\t|\t\t|\tscientific name",
+#'   "9443\t|\tPrimates\t|\t\t|\tscientific name",
+#'   "314146\t|\tEuarchontoglires\t|\t\t|\tscientific name",
+#'   "1437010\t|\tBoreoeutheria\t|\t\t|\tscientific name",
+#'   "9347\t|\tEutheria\t|\t\t|\tscientific name",
+#'   "32525\t|\tTheria\t|\t\t|\tscientific name",
+#'   "40674\t|\tMammalia\t|\t\t|\tscientific name",
+#'   "32524\t|\tAmniota\t|\t\t|\tscientific name",
+#'   "32523\t|\tTetrapoda\t|\t\t|\tscientific name",
+#'   "1338369\t|\tDipnotetrapodomorpha\t|\t\t|\tscientific name",
+#'   "8287\t|\tSarcopterygii\t|\t\t|\tscientific name",
+#'   "117571\t|\tEuteleostomi\t|\t\t|\tscientific name",
+#'   "117570\t|\tTeleostomi\t|\t\t|\tscientific name",
+#'   "7776\t|\tGnathostomata\t|\t\t|\tscientific name",
+#'   "7742\t|\tVertebrata\t|\t\t|\tscientific name",
+#'   "89593\t|\tCraniata\t|\t\t|\tscientific name",
+#'   "7711\t|\tChordata\t|\t\t|\tscientific name",
+#'   "33511\t|\tDeuterostomia\t|\t\t|\tscientific name",
+#'   "33213\t|\tBilateria\t|\t\t|\tscientific name",
+#'   "6072\t|\tEumetazoa\t|\t\t|\tscientific name",
+#'   "33208\t|\tMetazoa\t|\t\t|\tscientific name",
+#'   "33154\t|\tOpisthokonta\t|\t\t|\tscientific name",
+#'   "2759\t|\tEukaryota\t|\t\t|\tscientific name",
+#'   "131567\t|\tcellular organisms\t|\t\t|\tscientific name"
+#' )
+#' tmpFile<-tempfile()
+#' writeLines(namesText,tmpFile)
+#' taxaNames<-read.names.sql(tmpFile,sqlFile)
+#' nodesText<-c(
+#'  "1\t|\t1\t|\tno rank\t|\t\t|\t8\t|\t0\t|\t1\t|\t0\t|\t0\t|\t0\t|\t0\t|\t0\t|\t\t|",
+#'   "2\t|\t131567\t|\tsuperkingdom\t|\t\t|\t0\t|\t0\t|\t11\t|\t0\t|\t0\t|\t0\t|\t0\t|\t0\t|\t\t|",
+#'   "6\t|\t335928\t|\tgenus\t|\t\t|\t0\t|\t1\t|\t11\t|\t1\t|\t0\t|\t1\t|\t0\t|\t0\t|\t\t|",
+#'   "7\t|\t6\t|\tspecies\t|\tAC\t|\t0\t|\t1\t|\t11\t|\t1\t|\t0\t|\t1\t|\t1\t|\t0\t|\t\t|",
+#'   "9\t|\t32199\t|\tspecies\t|\tBA\t|\t0\t|\t1\t|\t11\t|\t1\t|\t0\t|\t1\t|\t1\t|\t0\t|\t\t|",
+#'   "9606\t|\t9605\t|\tspecies", "9605\t|\t207598\t|\tgenus", "207598\t|\t9604\t|\tsubfamily",
+#'   "9604\t|\t314295\t|\tfamily", "314295\t|\t9526\t|\tsuperfamily",
+#'   "9526\t|\t314293\t|\tparvorder", "314293\t|\t376913\t|\tinfraorder",
+#'   "376913\t|\t9443\t|\tsuborder", "9443\t|\t314146\t|\torder",
+#'   "314146\t|\t1437010\t|\tsuperorder", "1437010\t|\t9347\t|\tno rank",
+#'   "9347\t|\t32525\t|\tno rank", "32525\t|\t40674\t|\tno rank",
+#'   "40674\t|\t32524\t|\tclass", "32524\t|\t32523\t|\tno rank", "32523\t|\t1338369\t|\tno rank",
+#'   "1338369\t|\t8287\t|\tno rank", "8287\t|\t117571\t|\tno rank",
+#'   "117571\t|\t117570\t|\tno rank", "117570\t|\t7776\t|\tno rank",
+#'   "7776\t|\t7742\t|\tno rank", "7742\t|\t89593\t|\tno rank", "89593\t|\t7711\t|\tsubphylum",
+#'   "7711\t|\t33511\t|\tphylum", "33511\t|\t33213\t|\tno rank", "33213\t|\t6072\t|\tno rank",
+#'   "6072\t|\t33208\t|\tno rank", "33208\t|\t33154\t|\tkingdom",
+#'   "33154\t|\t2759\t|\tno rank", "2759\t|\t131567\t|\tsuperkingdom",
+#'   "131567\t|\t1\t|\tno rank"
+#' )
+#' writeLines(nodesText,tmpFile)
+#' taxaNodes<-read.nodes.sql(tmpFile,sqlFile)
+#' getRawTaxonomy(c(9606,9605),sqlFile)
+getRawTaxonomy<-function (ids,sqlFile='nameNode.sqlite'){
+  ids<-as.numeric(ids)
+  if(length(ids)==0)return(NULL)
+  uniqIds<-unique(ids)
+  taxa<-rep(list(NULL),length(uniqIds))
+  names(taxa)<-format(uniqIds,scientific=FALSE)
+  rep<-0
+  currentIds<-uniqIds
+  while(any(stillWorking<-!is.na(currentIds)&currentIds!=1)){
+    parents<-getParentNodes(currentIds[stillWorking],sqlFile)
+    taxa[stillWorking]<-mapply(function(xx,rank,name){
+      # while(rank %in% names(xx))rank<-sprintf('%s_',rank)
+      rank<-utils::tail(make.unique(c(names(xx),rank)),1)
+      xx[rank]<-name
+      return(xx)
+    },taxa[stillWorking],parents[,'rank'],parents[,'name'],SIMPLIFY=FALSE)
+    rep<-rep+1
+    currentIds[stillWorking]<-parents$parent
+    if(rep>200)stop('Found cycle in taxonomy')
+  }
+  out<-taxa[format(ids,scientific=FALSE)]
+  names(out)<-format(ids,scientific=FALSE)
   return(out)
 }
 
@@ -692,6 +805,7 @@ getNamesAndNodes<-function(outDir='.',url='ftp://ftp.ncbi.nih.gov/pub/taxonomy/t
   dir.create(tmp)
   tarFile<-file.path(tmp,base)
   utils::download.file(url,tarFile,mode='wb')
+  if(!checkDownloadMd5(url,tarFile))stop('Downloaded file does not match ',url,' File corrupted or download ended early?')
   utils::untar(tarFile,fileNames,exdir=tmp,tar='internal')
   tmpFiles<-file.path(tmp,fileNames)
   if(!all(file.exists(tmpFiles)))stop("Problem finding files ",paste(tmpFiles[!file.exists(tmpFiles)],collapse=', '))
@@ -734,8 +848,12 @@ getAccession2taxid<-function(outDir='.',baseUrl='ftp://ftp.ncbi.nih.gov/pub/taxo
     message(paste(outFiles,collapse=', '),' already exist. Delete to redownload')
     return(outFiles)
   }
-  urls<-paste(baseUrl,fileNames,sep='/')
-  mapply(utils::download.file,urls,outFiles)
+  if(!substring(baseUrl,nchar(baseUrl)) %in% c('/','\\'))baseUrl<-sprintf('%s/',baseUrl)
+  urls<-paste(baseUrl,fileNames,sep='')
+  mapply(function(xx,yy){
+    utils::download.file(xx,yy,mode='wb')
+    if(!checkDownloadMd5(xx,yy))stop('Downloaded file does not match ',xx,' File corrupted or download ended early?')
+  },urls,outFiles)
   return(outFiles)
 }
 
@@ -834,6 +952,7 @@ getId<-function(taxa,sqlFile='nameNode.sqlite',onlyScientific=TRUE){
 #'
 #' @param sqlFile character string giving the file location to store the SQLite database
 #' @param tmpDir location for storing the downloaded files from NCBI. (Note that it may be useful to store these somewhere convenient to avoid redownloading)
+#' @param getAccessions if TRUE download the very large accesssion2taxid files necessary to convert accessions to taxonomic IDs
 #' @param vocal if TRUE output messages describing progress
 #' @param ... additional arguments to getNamesAndNodes, getAccession2taxid or read.accession2taxid
 #' @return a vector of character string giving the path to the SQLite file
@@ -849,7 +968,7 @@ getId<-function(taxa,sqlFile='nameNode.sqlite',onlyScientific=TRUE){
 #'
 #'   prepareDatabase()
 #' }
-prepareDatabase<-function(sqlFile='nameNode.sqlite',tmpDir='.',vocal=TRUE,...){
+prepareDatabase<-function(sqlFile='nameNode.sqlite',tmpDir='.',getAccessions=TRUE,vocal=TRUE,...){
   if(!dir.exists(tmpDir))dir.create(tmpDir)
   if(file.exists(sqlFile)){
     message('SQLite database ',sqlFile,' already exists. Delete to regenerate')
@@ -859,18 +978,20 @@ prepareDatabase<-function(sqlFile='nameNode.sqlite',tmpDir='.',vocal=TRUE,...){
   if(vocal)message('Downloading names and nodes with getNamesAndNodes()')
   args <- intersect(argnames, names(as.list(args(getNamesAndNodes))))
   do.call(getNamesAndNodes,c(list(tmpDir),list(...)[args]))
-  if(vocal)message('Downloading accession2taxid with getAccession2taxid()')
-  args <- intersect(argnames, names(as.list(args(getAccession2taxid))))
-  accessionFiles<-do.call(getAccession2taxid,c(list(outDir=tmpDir),list(...)[args]))
   nameFile<-file.path(tmpDir,'names.dmp')
   if(vocal)message('Preprocessing names with read.names.sql()')
   read.names.sql(nameFile,sqlFile=sqlFile)
   if(vocal)message('Preprocessing nodes with read.nodes.sql()')
   nodeFile<-file.path(tmpDir,'nodes.dmp')
   read.nodes.sql(nodeFile,sqlFile=sqlFile)
-  if(vocal)message('Preprocessing accession2taxid with read.accession2taxid()')
-  args <- intersect(argnames, names(as.list(args(read.accession2taxid))))
-  do.call(read.accession2taxid,c(list(accessionFiles,sqlFile,vocal=vocal),list(...)[args]))
+  if(getAccessions){
+    if(vocal)message('Downloading accession2taxid with getAccession2taxid()')
+    args <- intersect(argnames, names(as.list(args(getAccession2taxid))))
+    accessionFiles<-do.call(getAccession2taxid,c(list(outDir=tmpDir),list(...)[args]))
+    if(vocal)message('Preprocessing accession2taxid with read.accession2taxid()')
+    args <- intersect(argnames, names(as.list(args(read.accession2taxid))))
+    do.call(read.accession2taxid,c(list(accessionFiles,sqlFile,vocal=vocal),list(...)[args]))
+  }
   return(sqlFile)
 }
 
@@ -944,16 +1065,16 @@ makeNewick<-function(taxa,naSub='_'){
 #'
 #' In version 0.5.0, taxonomizr switched from data.table to SQLite name and node lookups. See below for more details.
 #'
-#' Version 0.5.0 marked a change for name and node lookups from using data.table to using SQLite. This was necessary to increase performance (10-100x speedup for \code{\link{getTaxonomy}}) and create a simpler interface (a single SQLite database contains all necessary data). Unfortunately, this switch requires a couple breaking changes: 
+#' Version 0.5.0 marked a change for name and node lookups from using data.table to using SQLite. This was necessary to increase performance (10-100x speedup for \code{\link{getTaxonomy}}) and create a simpler interface (a single SQLite database contains all necessary data). Unfortunately, this switch requires a couple breaking changes:
 #' \itemize{
 #'  \item \code{\link{getTaxonomy}} changes from \code{getTaxonomy(ids,namesDT,nodesDT)} to \code{getTaxonomy(ids,sqlFile)}
 #'  \item  \code{\link{getId}} changes from  \code{getId(taxa,namesDT)} to \code{getId(taxa,sqlFile)}
 #'  \item \code{\link{read.names}} is deprecated, instead use \code{\link{read.names.sql}}. For example, instead of calling \code{names<-read.names('names.dmp')} in every session, simply call \code{read.names.sql('names.dmp','accessionTaxa.sql')} once (or use the convenient \code{\link{prepareDatabase}})).
 #'  \item \code{\link{read.nodes}} is deprecated, instead use \code{\link{read.names.sql}}. For example. instead of calling \code{nodes<-read.names('nodes.dmp')} in every session, simply call \code{read.nodes.sql('nodes.dmp','accessionTaxa.sql')} once (or use the convenient \code{\link{prepareDatabase}}).
 #' }
-#' 
-#' I've tried to ease any problems with this by overloading \code{\link{getTaxonomy}} and \code{\link{getId}} to still function (with a warning) if passed a data.table names and nodes argument and providing a simpler \code{\link{prepareDatabase}} function for completing all setup steps (hopefully avoiding direct calls to \code{\link{read.names}} and \code{\link{read.nodes}} for most users). 
-#' 
+#'
+#' I've tried to ease any problems with this by overloading \code{\link{getTaxonomy}} and \code{\link{getId}} to still function (with a warning) if passed a data.table names and nodes argument and providing a simpler \code{\link{prepareDatabase}} function for completing all setup steps (hopefully avoiding direct calls to \code{\link{read.names}} and \code{\link{read.nodes}} for most users).
+#'
 #' I plan to eventually remove data.table functionality to avoid a split codebase so please switch to the new SQLite format in all new code.
 #'
 #' @seealso \code{\link{getTaxonomy}}, \code{\link{read.names.sql}}, \code{\link{read.nodes.sql}}, \code{\link{prepareDatabase}}, \code{\link{getId}}

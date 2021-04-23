@@ -317,7 +317,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h2>Introduction</h2>
 <p><code>taxonomizr</code> provides some simple functions to parse NCBI taxonomy files and accession dumps and efficiently use them to assign <a href="https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/">taxonomy</a> to accession numbers or taxonomic IDs. This is useful for example to assign taxonomy to BLAST results. This is all done locally after downloading the appropriate files from NCBI using included functions (see <a href="#preparation">below</a>).</p>
 <p>The major functions are: * <code>prepareDatabase</code>: download data from NCBI and prepare SQLite database * <code>accessionToTaxa</code>: convert accession numbers to taxonomic IDs * <code>getTaxonomy</code>: convert taxonomic IDs to taxonomy</p>
-<p>More specialized functions are: * <code>getId</code>: convert a biological name to taxonomic ID * <code>getAccessions</code>: find accessions for a given taxonomic ID * <code>makeNewick</code>: generate a Newick formatted tree from taxonomic output</p>
+<p>More specialized functions are: * <code>getId</code>: convert a biological name to taxonomic ID * <code>getRawTaxonomy</code>: find all taxonomic ranks for a taxonomic ID * <code>getAccessions</code>: find accessions for a given taxonomic ID * <code>makeNewick</code>: generate a Newick formatted tree from taxonomic output</p>
 <p>And a simple use case might look like (see below for more details):</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">library</span>(taxonomizr)</a>
 <a class="sourceLine" id="cb1-2" title="2"><span class="co">#note this will require a lot of hard drive space, bandwidth and time to process all the data from NCBI</span></a>
@@ -433,16 +433,66 @@ read2   gi|160426828|gb|CP000885.1|     68.46   1763    452     82      3       
 ## read1 NA     
 ## read2 NA</code></pre>
 </div>
+<div id="find-all-taxonomic-assignments-for-a-given-taxa" class="section level3">
+<h3>Find all taxonomic assignments for a given taxa</h3>
+<p>To get all taxonomic assignments for a given taxa regardless of their particular rank, you can use the <code>getRawTaxonomy</code> function. Note that there are often many intermediate ranks outside the more common taxonomic ranks. The function returns a list since different IDs can have differing numbers of ranks. It is used similarly to <code>getTaxonomy</code>:</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb38-1" title="1"><span class="kw">getRawTaxonomy</span>(<span class="kw">c</span>(<span class="dv">9606</span>,<span class="dv">9913</span>),<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a></code></pre></div>
+<pre><code>## $`9606`
+##                species                  genus              subfamily 
+##         &quot;Homo sapiens&quot;                 &quot;Homo&quot;            &quot;Homininae&quot; 
+##                 family            superfamily              parvorder 
+##            &quot;Hominidae&quot;           &quot;Hominoidea&quot;           &quot;Catarrhini&quot; 
+##             infraorder               suborder                  order 
+##          &quot;Simiiformes&quot;          &quot;Haplorrhini&quot;             &quot;Primates&quot; 
+##             superorder                  clade                clade.1 
+##     &quot;Euarchontoglires&quot;        &quot;Boreoeutheria&quot;             &quot;Eutheria&quot; 
+##                clade.2                  class                clade.3 
+##               &quot;Theria&quot;             &quot;Mammalia&quot;              &quot;Amniota&quot; 
+##                clade.4                class.1             superclass 
+##            &quot;Tetrapoda&quot; &quot;Dipnotetrapodomorpha&quot;        &quot;Sarcopterygii&quot; 
+##                clade.5                clade.6                clade.7 
+##         &quot;Euteleostomi&quot;           &quot;Teleostomi&quot;        &quot;Gnathostomata&quot; 
+##                clade.8              subphylum                 phylum 
+##           &quot;Vertebrata&quot;             &quot;Craniata&quot;             &quot;Chordata&quot; 
+##                clade.9               clade.10               clade.11 
+##        &quot;Deuterostomia&quot;            &quot;Bilateria&quot;            &quot;Eumetazoa&quot; 
+##                kingdom               clade.12           superkingdom 
+##              &quot;Metazoa&quot;         &quot;Opisthokonta&quot;            &quot;Eukaryota&quot; 
+##                no rank 
+##   &quot;cellular organisms&quot; 
+## 
+## $`9913`
+##                species                  genus              subfamily 
+##           &quot;Bos taurus&quot;                  &quot;Bos&quot;              &quot;Bovinae&quot; 
+##                 family             infraorder               suborder 
+##              &quot;Bovidae&quot;               &quot;Pecora&quot;           &quot;Ruminantia&quot; 
+##                  order             superorder                  clade 
+##         &quot;Artiodactyla&quot;       &quot;Laurasiatheria&quot;        &quot;Boreoeutheria&quot; 
+##                clade.1                clade.2                  class 
+##             &quot;Eutheria&quot;               &quot;Theria&quot;             &quot;Mammalia&quot; 
+##                clade.3                clade.4                class.1 
+##              &quot;Amniota&quot;            &quot;Tetrapoda&quot; &quot;Dipnotetrapodomorpha&quot; 
+##             superclass                clade.5                clade.6 
+##        &quot;Sarcopterygii&quot;         &quot;Euteleostomi&quot;           &quot;Teleostomi&quot; 
+##                clade.7                clade.8              subphylum 
+##        &quot;Gnathostomata&quot;           &quot;Vertebrata&quot;             &quot;Craniata&quot; 
+##                 phylum                clade.9               clade.10 
+##             &quot;Chordata&quot;        &quot;Deuterostomia&quot;            &quot;Bilateria&quot; 
+##               clade.11                kingdom               clade.12 
+##            &quot;Eumetazoa&quot;              &quot;Metazoa&quot;         &quot;Opisthokonta&quot; 
+##           superkingdom                no rank 
+##            &quot;Eukaryota&quot;   &quot;cellular organisms&quot;</code></pre>
+</div>
 <div id="finding-accessions-for-a-given-taxonomic-id" class="section level3">
 <h3>Finding accessions for a given taxonomic ID</h3>
 <p>To find all the accessions for a given taxonomic ID, you can use the <code>getAccessions</code> function. This is a bit of an unusual use case so to preserve space, an index is not created by default in <code>read.accession2taxid</code>. If you are going to use this function, you will want to rebuild the SQLite database with the <code>indexTaxa</code> argument set to true with something like:</p>
-<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb38-1" title="1"><span class="kw">read.accession2taxid</span>(<span class="kw">list.files</span>(<span class="st">&#39;.&#39;</span>,<span class="st">&#39;accession2taxid.gz$&#39;</span>),<span class="st">&#39;accessionTaxa.sql&#39;</span>,<span class="dt">indexTaxa=</span><span class="ot">TRUE</span>,<span class="dt">overwrite=</span><span class="ot">TRUE</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb40-1" title="1"><span class="kw">read.accession2taxid</span>(<span class="kw">list.files</span>(<span class="st">&#39;.&#39;</span>,<span class="st">&#39;accession2taxid.gz$&#39;</span>),<span class="st">&#39;accessionTaxa.sql&#39;</span>,<span class="dt">indexTaxa=</span><span class="ot">TRUE</span>,<span class="dt">overwrite=</span><span class="ot">TRUE</span>)</a></code></pre></div>
 <pre><code>## Reading nucl_gb.accession2taxid.gz.</code></pre>
 <pre><code>## Reading nucl_wgs.accession2taxid.gz.</code></pre>
 <pre><code>## Reading in values. This may take a while.</code></pre>
 <pre><code>## Adding index. This may also take a while.</code></pre>
 <p>Then you can get the accessions for taxa 3702 with a command like (note that the limit argument is used here in order to preserve space):</p>
-<div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb43-1" title="1"><span class="kw">getAccessions</span>(<span class="dv">3702</span>,<span class="st">&#39;accessionTaxa.sql&#39;</span>,<span class="dt">limit=</span><span class="dv">10</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb45-1" title="1"><span class="kw">getAccessions</span>(<span class="dv">3702</span>,<span class="st">&#39;accessionTaxa.sql&#39;</span>,<span class="dt">limit=</span><span class="dv">10</span>)</a></code></pre></div>
 <pre><code>##    taxa accession
 ## 1  3702  X58148.1
 ## 2  3702  X66414.1
@@ -458,12 +508,12 @@ read2   gi|160426828|gb|CP000885.1|     68.46   1763    452     82      3       
 <div id="convert-taxonomy-to-newick-tree" class="section level3">
 <h3>Convert taxonomy to Newick tree</h3>
 <p>This is probably only useful in a few specific cases but a convenience function <code>makeNewick</code> to convert taxonomy into a Newick tree is included. The function takes a matrix giving with columns corresponding to taxonomic categories and rows different to taxonomic assignments, e.g. the output from <code>condenseTaxa</code> or <code>getTaxonomy</code> and reduces it to a Newick formatted tree. For example:</p>
-<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb45-1" title="1">taxa</a></code></pre></div>
+<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb47-1" title="1">taxa</a></code></pre></div>
 <pre><code>##      [,1]        [,2]       [,3]       [,4]       [,5]        [,6]   
 ## [1,] &quot;Eukaryota&quot; &quot;Chordata&quot; &quot;Mammalia&quot; &quot;Primates&quot; &quot;Hominidae&quot; &quot;Homo&quot; 
 ## [2,] &quot;Eukaryota&quot; &quot;Chordata&quot; &quot;Mammalia&quot; &quot;Primates&quot; &quot;Hominidae&quot; &quot;Pan&quot;  
 ## [3,] &quot;Eukaryota&quot; &quot;Chordata&quot; &quot;Mammalia&quot; NA         &quot;Cervidae&quot;  &quot;Alces&quot;</code></pre>
-<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb47-1" title="1"><span class="kw">makeNewick</span>(taxa)</a></code></pre></div>
+<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb49-1" title="1"><span class="kw">makeNewick</span>(taxa)</a></code></pre></div>
 <pre><code>## [1] &quot;((((((Homo,Pan)Hominidae)Primates,((Alces)Cervidae)_)Mammalia)Chordata)Eukaryota)&quot;</code></pre>
 </div>
 </div>
@@ -501,29 +551,29 @@ read2   gi|160426828|gb|CP000885.1|     68.46   1763    452     82      3       
 <div id="download-names-and-nodes" class="section level3">
 <h3>Download names and nodes</h3>
 <p>First, download the necessary names and nodes files from <a href="ftp://ftp.ncbi.nih.gov/pub/taxonomy/">NCBI</a>:</p>
-<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb49-1" title="1"><span class="kw">getNamesAndNodes</span>()</a></code></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb51-1" title="1"><span class="kw">getNamesAndNodes</span>()</a></code></pre></div>
 <pre><code>## [1] &quot;./names.dmp&quot; &quot;./nodes.dmp&quot;</code></pre>
 </div>
 <div id="download-accession-to-taxa-files" class="section level3">
 <h3>Download accession to taxa files</h3>
 <p>Then download accession to taxa id conversion files from <a href="ftp://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/">NCBI</a>. <strong>Note:</strong> this is a pretty <em>big</em> download (several gigabytes):</p>
-<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb51-1" title="1"><span class="co">#this is a big download</span></a>
-<a class="sourceLine" id="cb51-2" title="2"><span class="kw">getAccession2taxid</span>()</a></code></pre></div>
+<div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb53-1" title="1"><span class="co">#this is a big download</span></a>
+<a class="sourceLine" id="cb53-2" title="2"><span class="kw">getAccession2taxid</span>()</a></code></pre></div>
 <pre><code>## This can be a big (several gigabytes) download. Please be patient and use a fast connection.</code></pre>
 <pre><code>## [1] &quot;./nucl_gb.accession2taxid.gz&quot;  &quot;./nucl_wgs.accession2taxid.gz&quot;</code></pre>
 <p>If you would also like to identify protein accession numbers, also download the prot file from NCBI (again this is a <em>big</em> download):</p>
-<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb54-1" title="1"><span class="co">#this is a big download</span></a>
-<a class="sourceLine" id="cb54-2" title="2"><span class="kw">getAccession2taxid</span>(<span class="dt">types=</span><span class="st">&#39;prot&#39;</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb56-1" title="1"><span class="co">#this is a big download</span></a>
+<a class="sourceLine" id="cb56-2" title="2"><span class="kw">getAccession2taxid</span>(<span class="dt">types=</span><span class="st">&#39;prot&#39;</span>)</a></code></pre></div>
 <pre><code>## This can be a big (several gigabytes) download. Please be patient and use a fast connection.</code></pre>
 <pre><code>## [1] &quot;./prot.accession2taxid.gz&quot;</code></pre>
 </div>
 <div id="convert-names-nodes-and-accessions-to-database" class="section level3">
 <h3>Convert names, nodes and accessions to database</h3>
 <p>Then process the downloaded names and nodes files into a more easily accessed form:</p>
-<div class="sourceCode" id="cb57"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb57-1" title="1"><span class="kw">read.names.sql</span>(<span class="st">&#39;names.dmp&#39;</span>,<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a>
-<a class="sourceLine" id="cb57-2" title="2"><span class="kw">read.nodes.sql</span>(<span class="st">&#39;nodes.dmp&#39;</span>,<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb59-1" title="1"><span class="kw">read.names.sql</span>(<span class="st">&#39;names.dmp&#39;</span>,<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a>
+<a class="sourceLine" id="cb59-2" title="2"><span class="kw">read.nodes.sql</span>(<span class="st">&#39;nodes.dmp&#39;</span>,<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a></code></pre></div>
 <p>Next process the downloaded accession files into the same database (this one could take a while):</p>
-<div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb58-1" title="1"><span class="kw">read.accession2taxid</span>(<span class="kw">list.files</span>(<span class="st">&#39;.&#39;</span>,<span class="st">&#39;accession2taxid.gz$&#39;</span>),<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb60-1" title="1"><span class="kw">read.accession2taxid</span>(<span class="kw">list.files</span>(<span class="st">&#39;.&#39;</span>,<span class="st">&#39;accession2taxid.gz$&#39;</span>),<span class="st">&#39;accessionTaxa.sql&#39;</span>)</a></code></pre></div>
 <pre><code>## Reading nucl_gb.accession2taxid.gz.</code></pre>
 <pre><code>## Reading nucl_wgs.accession2taxid.gz.</code></pre>
 <pre><code>## Reading prot.accession2taxid.gz.</code></pre>
