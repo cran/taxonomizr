@@ -1,7 +1,7 @@
 # Convert accession numbers to taxonomy
 
 [![Build Status](https://travis-ci.org/sherrillmix/taxonomizr.svg?branch=master)](https://travis-ci.org/sherrillmix/taxonomizr)
-[![codecov](https://codecov.io/gh/sherrillmix/taxonomizr/branch/master/graph/badge.svg)](https://codecov.io/gh/sherrillmix/taxonomizr)
+[![codecov](https://codecov.io/gh/sherrillmix/taxonomizr/branch/master/graph/badge.svg)](https://app.codecov.io/gh/sherrillmix/taxonomizr)
 [![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/taxonomizr)](https://cran.r-project.org/package=taxonomizr)
 
 ## Introduction
@@ -16,8 +16,10 @@ The major functions are:
 More specialized functions are:
  * `getId`: convert a biological name to taxonomic ID
  * `getRawTaxonomy`: find all taxonomic ranks for a taxonomic ID
- * `getAccessions`: find accessions for a given taxonomic ID
+ * `normalizeTaxa`: combine raw taxonomies with different taxonomic ranks
+ * `condenseTaxa`: condense a set of taxa to their most specific common branch
  * `makeNewick`: generate a Newick formatted tree from taxonomic output
+ * `getAccessions`: find accessions for a given taxonomic ID
 
 And a simple use case might look like (see below for more details):
 
@@ -122,8 +124,22 @@ prepareDatabase('accessionTaxa.sql')
 ## [1] "accessionTaxa.sql"
 ```
 
+Note that if you only want the taxonomic data and do not want to assign taxonomy to accession ID then you can just get the much smaller `names` and `nodes` data sets and exclude the large download and time consuming databasing of accession IDs by setting `getAccessions=FALSE` e.g.:
 
 
+
+```r
+prepareDatabase(getAccessions=FALSE)
+```
+
+```
+## Downloading names and nodes with getNamesAndNodes()
+##  [100%] Downloaded 57373562 bytes...
+##  [100%] Downloaded 49 bytes...
+## Preprocessing names with read.names.sql()
+## Preprocessing nodes with read.nodes.sql()
+## [1] "nameNode.sqlite"
+```
 
 ## Assigning taxonomy
 
@@ -324,7 +340,59 @@ getRawTaxonomy(c(9606,9913),'accessionTaxa.sql')
 ##            "Eukaryota"   "cellular organisms"
 ```
 
+These raw taxonomy with varying numbers of levels can be normalized so that all taxa share the same number of levels (aligning by taxonomic levels that are not the unspecific "clade") using the `normalizeTaxa` function:
 
+
+
+```r
+raw<-getRawTaxonomy(c(9606,9913),'accessionTaxa.sql')
+normalizeTaxa(raw)
+```
+
+```
+##      no rank              superkingdom superkingdom.1 kingdom   kingdom.1  
+## 9606 "cellular organisms" "Eukaryota"  "Opisthokonta" "Metazoa" "Eumetazoa"
+## 9913 "cellular organisms" "Eukaryota"  "Opisthokonta" "Metazoa" "Eumetazoa"
+##      kingdom.2   kingdom.3       phylum     subphylum  subphylum.1 
+## 9606 "Bilateria" "Deuterostomia" "Chordata" "Craniata" "Vertebrata"
+## 9913 "Bilateria" "Deuterostomia" "Chordata" "Craniata" "Vertebrata"
+##      subphylum.2     subphylum.3  subphylum.4    superclass     
+## 9606 "Gnathostomata" "Teleostomi" "Euteleostomi" "Sarcopterygii"
+## 9913 "Gnathostomata" "Teleostomi" "Euteleostomi" "Sarcopterygii"
+##      superclass.1           superclass.2 superclass.3 class      class.1 
+## 9606 "Dipnotetrapodomorpha" "Tetrapoda"  "Amniota"    "Mammalia" "Theria"
+## 9913 "Dipnotetrapodomorpha" "Tetrapoda"  "Amniota"    "Mammalia" "Theria"
+##      class.2    class.3         superorder         order          suborder     
+## 9606 "Eutheria" "Boreoeutheria" "Euarchontoglires" "Primates"     "Haplorrhini"
+## 9913 "Eutheria" "Boreoeutheria" "Laurasiatheria"   "Artiodactyla" "Ruminantia" 
+##      infraorder    parvorder    superfamily  family      subfamily   genus 
+## 9606 "Simiiformes" "Catarrhini" "Hominoidea" "Hominidae" "Homininae" "Homo"
+## 9913 "Pecora"      NA           NA           "Bovidae"   "Bovinae"   "Bos" 
+##      species       
+## 9606 "Homo sapiens"
+## 9913 "Bos taurus"
+```
+
+`normalizeTaxa` does its best to figure out the order of taxonomic levels automatically but can sometimes be left with ambiguous cases. This will result in an error like:
+
+
+```
+Error in topoSort(c(nonClade, list(lineageOrder)), errorIfAmbiguous = TRUE) : 
+  Ambiguous ordering found in topoSort (suborder vs infraorder)
+```
+
+That's saying that the algorithm is unclear from the data whether suborder or infraorder is the more specific taxonomic level. To clarify, give the `lineageOrder` parameter a vector going from most to least specific like:
+
+```
+normalizeTaxa(raw,lineageOrder=c('infraorder','suborder'))
+```
+
+For especially troublesome sets, you may have to repeat this step several times getting a new error each time to find all the ambiguities. This would result in building up a vector specifying the ordering of several ambiguous levels like:
+
+```
+normalizeTaxa(raw,lineageOrder=c('infraorder','suborder','superorder','infraclass','subclass','class'))
+
+```
 
 
 ### Finding accessions for a given taxonomic ID
@@ -375,7 +443,7 @@ getAccessions(3702,'accessionTaxa.sql',limit=10)
 
 ### Convert taxonomy to Newick tree
 
-This is probably only useful in a few specific cases but a convenience function `makeNewick` to convert taxonomy into a Newick tree is included. The function takes a matrix giving with columns corresponding to taxonomic categories and rows different to taxonomic assignments, e.g. the output from `condenseTaxa` or `getTaxonomy` and reduces it to a Newick formatted tree. For example:
+This is probably only useful in a few specific cases but a convenience function `makeNewick` to convert taxonomy into a Newick tree is included. The function takes a matrix with columns corresponding to taxonomic categories and rows corresponding to taxonomic assignments, e.g. the output from `condenseTaxa` or `getTaxonomy` or `normalizeTaxa` and reduces it to a Newick formatted tree. For example:
 
 
 
@@ -396,13 +464,91 @@ makeNewick(taxa)
 ```
 
 ```
-## [1] "((((((Homo,Pan)Hominidae)Primates,((Alces)Cervidae)_)Mammalia)Chordata)Eukaryota)"
+## [1] "((((((Homo,Pan)Hominidae)Primates,((Alces)Cervidae)_)Mammalia)Chordata)Eukaryota);"
 ```
+
+If quotes are needed, then specify the `quote` argument:
+
+
+```r
+makeNewick(taxa,quote="'")
+```
+
+```
+## [1] "(((((('Homo','Pan')'Hominidae')'Primates',(('Alces')'Cervidae')_)'Mammalia')'Chordata')'Eukaryota');"
+```
+
+By default, `makeNewick` includes trailing nodes that are all NA in the tree e.g.:
+
+
+```r
+taxa[3,3:6]<-NA
+print(taxa)
+```
+
+```
+##      [,1]        [,2]       [,3]       [,4]       [,5]        [,6]  
+## [1,] "Eukaryota" "Chordata" "Mammalia" "Primates" "Hominidae" "Homo"
+## [2,] "Eukaryota" "Chordata" "Mammalia" "Primates" "Hominidae" "Pan" 
+## [3,] "Eukaryota" "Chordata" NA         NA         NA          NA
+```
+
+```r
+makeNewick(taxa)
+```
+
+```
+## [1] "((((((Homo,Pan)Hominidae)Primates)Mammalia,(((_)_)_)_)Chordata)Eukaryota);"
+```
+
+If these nodes are not desired then set `excludeTerminalNAs` to `FALSE`:
+
+```r
+makeNewick(taxa,excludeTerminalNAs=TRUE)
+```
+
+```
+## [1] "((((((Homo,Pan)Hominidae)Primates)Mammalia)Chordata)Eukaryota);"
+```
+
+Note that taxa may be the most specific taxon for a given taxa in the taxonomy matrix but will not be a leaf in the resulting tree if it appears in other taxonomy e.g. Chordata in this example. 
+
 
 
 ## Changelog
+### v0.9.2
+  * Allow factors as input to accessionToTaxa
+  * Document sqlite pragmas for `read.accession2taxid`
+  * Inherit ... argument documentation for `prepareDatabase`
+  * Catch input/output error while processing large files
+  * Update various user-facing links from ftp to https for easier access
 
-### v0.5.3
+### v0.8.4
+  * Add quote option to `makeNewick`
+  * Trim trailing NAs off the tree in `makeNewick` if `excludeTerminalNAs` is TRUE
+  * Add terminal semicolon to end of `makeNewick` tree unless `terminator` is NULL
+
+### v0.8.3
+  * Add "no rank" to `normalizeTaxa`'s default exclusion
+  * Expand README
+
+### v0.8.2
+  * Add `normalizeTaxa` function
+
+### v0.8.1
+  * Fix minor typos
+
+### v0.8.0
+  * Switch to `curl::curl_download` to avoid Windows issues
+
+### v0.7.1
+  * Add md5 check for downloads
+
+### v0.7.0
+  * Add `getRawTaxonomy` function
+  * Add option to not download accessions
+
+### v0.6.0
   * Fix named vector bug in `accessionToTaxa`
   * Add `makeNewick` function
   * Deal with default 60 second timeout for downloads in R
@@ -424,7 +570,7 @@ In order to avoid constant internet access and slow APIs, the first step in usin
 **Note:** It is not necessary to manually check for the presence of these files since the functions automatically check to see if their output is present and if so skip downloading/processing. Delete the local files if you would like to redownload or reprocess them.
 
 ### Download names and nodes
-First, download the necessary names and nodes files from [NCBI](ftp://ftp.ncbi.nih.gov/pub/taxonomy/):
+First, download the necessary names and nodes files from [NCBI](https://ftp.ncbi.nih.gov/pub/taxonomy/):
 
 ```r
 getNamesAndNodes()
@@ -436,7 +582,7 @@ getNamesAndNodes()
 
 ### Download accession to taxa files
 
-Then download accession to taxa id conversion files from [NCBI](ftp://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/). **Note:** this is a pretty _big_ download (several gigabytes):
+Then download accession to taxa id conversion files from [NCBI](https://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/). **Note:** this is a pretty _big_ download (several gigabytes):
 
 ```r
 #this is a big download

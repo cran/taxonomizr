@@ -22,6 +22,9 @@ library(taxonomizr)
 #  prepareDatabase('accessionTaxa.sql')
 
 ## ----eval=FALSE---------------------------------------------------------------
+#  prepareDatabase(getAccessions=FALSE)
+
+## ----eval=FALSE---------------------------------------------------------------
 #  blastResults<-read.table('XXXX.blast',header=FALSE,stringsAsFactors=FALSE)
 #  #grab the 4th |-separated field from the reference name in the second column
 #  accessions<-sapply(strsplit(blastResults[,2],'\\|'),'[',4)
@@ -60,6 +63,10 @@ library(taxonomizr)
 #  getRawTaxonomy(c(9606,9913),'accessionTaxa.sql')
 
 ## ----eval=FALSE---------------------------------------------------------------
+#  raw<-getRawTaxonomy(c(9606,9913),'accessionTaxa.sql')
+#  normalizeTaxa(raw)
+
+## ----eval=FALSE---------------------------------------------------------------
 #  read.accession2taxid(list.files('.','accession2taxid.gz$'),'accessionTaxa.sql',indexTaxa=TRUE,overwrite=TRUE)
 
 ## ----eval=FALSE---------------------------------------------------------------
@@ -71,6 +78,17 @@ taxa<-matrix(c('Eukaryota','Chordata','Mammalia','Primates','Hominidae','Homo','
 ## -----------------------------------------------------------------------------
 taxa
 makeNewick(taxa)
+
+## -----------------------------------------------------------------------------
+makeNewick(taxa,quote="'")
+
+## -----------------------------------------------------------------------------
+taxa[3,3:6]<-NA
+print(taxa)
+makeNewick(taxa)
+
+## -----------------------------------------------------------------------------
+makeNewick(taxa,excludeTerminalNAs=TRUE)
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  getNamesAndNodes()
