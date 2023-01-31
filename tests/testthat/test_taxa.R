@@ -38,8 +38,8 @@ test_that("Test read.names.sql",{
     "2\t|\tProcaryotae\t|\tProcaryotae <Bacteria>\t|\tin-part\t|"
   )
   tmp<-tempfile()
-  out<-data.frame('id'=1:2,'name'=c('root','Bacteria'),scientific=c(1,1),stringsAsFactors=FALSE)
-  out2<-data.frame('id'=rep(1:2,2:3),'name'=c('all','root','Bacteria','Monera','Procaryotae'),'scientific'=c(0,1,1,0,0),stringsAsFactors=FALSE)
+  out<-data.frame('id'=1:2,'name'=c('root','Bacteria'),'scientific'=c(1,1),'type'=c('scientific name','scientific name'),stringsAsFactors=FALSE)
+  out2<-data.frame('id'=rep(1:2,2:3),'name'=c('all','root','Bacteria','Monera','Procaryotae'),'scientific'=c(0,1,1,0,0),'type'=c("synonym","scientific name","scientific name","in-part","in-part"),stringsAsFactors=FALSE)
   expect_warning(expect_error(read.names.sql('____NOT_A_REAL____.FILE'),'cannot open'),'cannot open')
   expect_equal(read.names.sql(textConnection(names),tmp),tmp)
   expect_true(file.exists(tmp))
@@ -126,7 +126,7 @@ test_that("Test trimTaxa",{
   tmpPerm<-tempfile()
   file.create(tmpPerm)
   #some systems can't set permissions
-  if(Sys.chmod(tmpPerm,'0000') && file.access(tmpPerm,6)==-1 && any(class(tryCatch(readLines(tmpPerm),error=function(xx)xx))=='error') && any(class(tryCatch(writeLines('ABC',tmpPerm),error=function(xx)xx))=='error')){
+  if(Sys.chmod(tmpPerm,'0000') && file.access(tmpPerm,6)==-1 && any(class(tryCatch(readLines(tmpPerm),error=function(xx)xx,warning=function(xx){}))=='error') && any(class(tryCatch(writeLines('ABC',tmpPerm),error=function(xx)xx,warning=function(xx){}))=='error')){
     expect_error(.C('taxaTrim',c(tmpPerm,tmp),1:2,2,PACKAGE='taxonomizr'),'input file')
     expect_error(.C('taxaTrim',c(tmp,tmpPerm),1:2,2,PACKAGE='taxonomizr'),'output file')
   }
@@ -211,7 +211,7 @@ test_that("Test read.accession2taxid",{
   }
 })
 
-test_that("Test getTaxonomy and getRawTaxonomy",{
+test_that("Test getTaxonomy and getRawTaxonomy and getDescendants",{
   namesText<-c(
     "1\t|\tall\t|\t\t|\tsynonym\t|",
     "1\t|\troot\t|\t\t|\tscientific name\t|",
@@ -233,7 +233,9 @@ test_that("Test getTaxonomy and getRawTaxonomy",{
     "7711\t|\tChordata\t|\t\t|\tscientific name", "33511\t|\tDeuterostomia\t|\t\t|\tscientific name",
     "33213\t|\tBilateria\t|\t\t|\tscientific name", "6072\t|\tEumetazoa\t|\t\t|\tscientific name",
     "33208\t|\tMetazoa\t|\t\t|\tscientific name", "33154\t|\tOpisthokonta\t|\t\t|\tscientific name",
-    "2759\t|\tEukaryota\t|\t\t|\tscientific name", "131567\t|\tcellular organisms\t|\t\t|\tscientific name"
+    "2759\t|\tEukaryota\t|\t\t|\tscientific name", "131567\t|\tcellular organisms\t|\t\t|\tscientific name",
+    "1425170\t|\tHomo heidelbergensis\t|\t\t|\tscientific name",
+    "1234567890\t|\tMADE UP\t|\t\t|\tscientific name"
   )
   nodesText<-c(
    "1\t|\t1\t|\tno rank\t|\t\t|\t8\t|\t0\t|\t1\t|\t0\t|\t0\t|\t0\t|\t0\t|\t0\t|\t\t|",
@@ -254,7 +256,8 @@ test_that("Test getTaxonomy and getRawTaxonomy",{
     "7711\t|\t33511\t|\tphylum", "33511\t|\t33213\t|\tno rank", "33213\t|\t6072\t|\tno rank",
     "6072\t|\t33208\t|\tno rank", "33208\t|\t33154\t|\tkingdom",
     "33154\t|\t2759\t|\tno rank", "2759\t|\t131567\t|\tsuperkingdom",
-    "131567\t|\t1\t|\tno rank"
+    "131567\t|\t1\t|\tno rank",  '1425170\t|\t9605\t|\tspecies',
+    "1234567890\t|\t1234567891\t|\tspecies", "1234567891\t|\t40674\t|\tfamily"
   )
   tmp<-tempfile()
   read.names.sql(textConnection(namesText),tmp)
@@ -297,6 +300,24 @@ test_that("Test getTaxonomy and getRawTaxonomy",{
   read.nodes.sql(textConnection(cycle),tmp2)
   expect_error(getTaxonomy(9606,tmp2),'cycle')
   expect_error(getRawTaxonomy(9606,tmp2),'cycle')
+  expect_equal(getDescendants(9606,tmp),as.character(c()))
+  expect_equal(getDescendants(999999999,tmp),as.character(c()))
+  expect_equal(getDescendants(-13123,tmp),as.character(c()))
+  expect_equal(getDescendants(NA,tmp),as.character(c()))
+  expect_equal(sort(getDescendants('207598',tmp)),sort(c('Homo sapiens','Homo heidelbergensis')))
+  expect_equal(sort(getDescendants(207598,tmp)),sort(c('Homo sapiens','Homo heidelbergensis')))
+  expect_equal(sort(getDescendants('1',tmp)),sort(c('Homo sapiens','Homo heidelbergensis','MADE UP')))
+  expect_equal(sort(getDescendants('40674',tmp)),sort(c('Homo sapiens','Homo heidelbergensis','MADE UP')))
+  expect_equal(getDescendants('1234567891',tmp),c('MADE UP'))
+  expect_equal(sort(getDescendants('32525',tmp)),sort(c('Homo sapiens','Homo heidelbergensis')))
+  expect_equal(sort(getDescendants(c('1234567891','32525'),tmp)),sort(c('Homo sapiens','Homo heidelbergensis','MADE UP')))
+  expect_equal(sort(getDescendants(c('1','1234567891','32525'),tmp)),sort(c('Homo sapiens','Homo heidelbergensis','MADE UP')))
+  expect_equal(getDescendants('1',tmp,'suborder'),c('Haplorrhini'))
+  expect_equal(sort(getDescendants('1',tmp,c('suborder','species'))),sort(c('Haplorrhini','Homo sapiens','Homo heidelbergensis','MADE UP')))
+  expect_equal(sort(getDescendants('1',tmp,'family')),sort(c('Hominidae',NA)))
+  expect_equal(sort(getDescendants('1',tmp,'superkingdom')),sort(c('Bacteria','Eukaryota')))
+  expect_warning(getDescendants("ASDASD",tmp),'coercion')
+  expect_error(getDescendants(9606,tmp2),'cycle')
 })
 
 test_that("Test getTaxonomy and getRawTaxonomy with duplicated taxa ranks",{
@@ -762,7 +783,7 @@ test_that("Test getAccessions",{
 
 
 test_that("Test prepareDatabase",{
-  tmp<-tempfile()
+  tmp<-tempfile() 
   tmpDir<-tempfile()
   dir.create(tmpDir)
   types<-c('XxXx','XyXyX')
@@ -787,7 +808,7 @@ test_that("Test prepareDatabase",{
   expect_error(prepareDatabase(tmp,tmpDir,url=fakeFile,baseUrl=sprintf('file://%s',tmpDir),types=c('nucl_XxXx','nucl_XyXyX')),NA)
   db<-RSQLite::dbConnect(RSQLite::SQLite(),tmp)
   expect_equal(sort(RSQLite::dbListTables(db)),c('accessionTaxa','names','nodes'))
-  expect_equal(colnames(RSQLite::dbGetQuery(db,'SELECT * FROM names LIMIT 1')),c('id','name','scientific'))
+  expect_equal(colnames(RSQLite::dbGetQuery(db,'SELECT * FROM names LIMIT 1')),c('id','name','scientific','type'))
   expect_equal(colnames(RSQLite::dbGetQuery(db,'SELECT * FROM nodes LIMIT 1')),c('id','rank','parent'))
   expect_equal(colnames(RSQLite::dbGetQuery(db,'SELECT * FROM accessionTaxa LIMIT 1')),c('base','accession','taxa'))
   expect_message(prepareDatabase(tmp,tmpDir,url=fakeFile,baseUrl=sprintf('file://%s',tmpDir),types=c('nucl_XxXx','nucl_XyXyX')),'exists')
@@ -869,4 +890,73 @@ test_that("Test topoSort",{
   expect_error(topoSort(list(c('A','B')),maxIter=1),'[iI]teration')
   expect_equal(topoSort(list(c('A','B')),maxIter=2),c('A','B'))
   expect_equal(topoSort(1:10),1:10)
+})
+
+test_that("Test getCommon",{
+  namesText<-"9894\t|\tGiraffa camelopardalis (Linnaeus, 1758)\t|\t\t|\tauthority\t|
+  9894\t|\tGiraffa camelopardalis\t|\t\t|\tscientific name\t|
+  9894\t|\tgiraffe\t|\t\t|\tgenbank common name\t|
+  9909\t|\taurochs\t|\t\t|\tgenbank common name\t|
+  9909\t|\tBos primigenius Bojanus, 1827\t|\t\t|\tauthority\t|
+  9909\t|\tBos primigenius\t|\t\t|\tscientific name\t|
+  9913\t|\tBos bovis\t|\t\t|\tsynonym\t|
+  9913\t|\tBos primigenius taurus\t|\t\t|\tsynonym\t|
+  9913\t|\tBos taurus Linnaeus, 1758\t|\t\t|\tauthority\t|
+  9913\t|\tBos taurus\t|\t\t|\tscientific name\t|
+  9913\t|\tBovidae sp. Adi Nefas\t|\t\t|\tincludes\t|
+  9913\t|\tbovine\t|\t\t|\tcommon name\t|
+  9913\t|\tcattle\t|\t\t|\tgenbank common name\t|
+  9913\t|\tcow\t|\t\t|\tcommon name\t|
+  9913\t|\tdairy cow\t|\t\t|\tcommon name\t|
+  9913\t|\tdomestic cattle\t|\t\t|\tcommon name\t|
+  9913\t|\tdomestic cow\t|\t\t|\tcommon name\t|
+  9913\t|\tox\t|\t\t|\tcommon name\t|
+  9913\t|\toxen\t|\t\t|\tcommon name\t|
+  9916\t|\tBoselaphus\t|\t\t|\tscientific name\t|"
+  tmpFile<-tempfile()
+  writeLines(namesText,tmpFile)
+  sqlFile<-tempfile()
+  read.names.sql(tmpFile,sqlFile)
+  auroch<-data.frame('name'=c('aurochs','Bos primigenius Bojanus, 1827','Bos primigenius'),'type'=c('genbank common name','authority','scientific name'))
+  giraffe<-data.frame('name'=c("Giraffa camelopardalis (Linnaeus, 1758)", "Giraffa camelopardalis", "giraffe"),'type'=c("authority", "scientific name", "genbank common name"))
+  cow<-data.frame('name' = c("Bos bovis", "Bos primigenius taurus", "Bos taurus Linnaeus, 1758", "Bos taurus", "Bovidae sp. Adi Nefas", "bovine", "cattle", "cow", "dairy cow", "domestic cattle", "domestic cow", "ox", "oxen"),
+    'type' = c("synonym", "synonym", "authority", "scientific name", "includes", "common name", "genbank common name", "common name", "common name", "common name", "common name", "common name", "common name"))
+  expect_equal(getCommon(9909,sqlFile),list(auroch))
+  expect_equal(getCommon(9894,sqlFile),list(giraffe))
+  expect_equal(getCommon(c(9909,9894),sqlFile),list(auroch,giraffe))
+  expect_equal(getCommon(c(9894,9909),sqlFile),list(giraffe,auroch))
+  expect_equal(getCommon(c(9894,9909,9913),sqlFile),list(giraffe,auroch,cow))
+  expect_equal(getCommon(c(9913,9894,9913,9909,9913),sqlFile),list(cow,giraffe,cow,auroch,cow))
+  expect_equal(getCommon(c(9913,999999,-120,NA,1.2345,9894),sqlFile),list(cow,NULL,NULL,NULL,NULL,giraffe))
+  removeRowNames<-function(xx){if(nrow(xx)>0)rownames(xx)<-NULL;xx}
+  expect_equal(getCommon(c(9999999,9916,9894,9913),sqlFile,'common name'),list(NULL,NULL,NULL,removeRowNames(cow[cow$type=='common name',])))
+  targetTypes<-c("common name","genbank common name")
+  expect_equal(getCommon(c(9999999,9916,9894,9913),sqlFile,targetTypes),list(NULL,NULL,removeRowNames(giraffe[giraffe$type %in% targetTypes,]),removeRowNames(cow[cow$type %in% targetTypes,])))
+  db <- RSQLite::dbConnect(RSQLite::SQLite(), dbname=sqlFile)
+  RSQLite::dbExecute(db,"ALTER TABLE names DROP COLUMN type")
+  RSQLite::dbDisconnect(db)
+  expect_error(getCommon(9909,sqlFile),'not included')
+})
+
+test_that("Test resumableDownload",{
+  tmpFile<-tempfile()
+  tmpFile2<-tempfile()
+  tmpFile3<-tempfile()
+  writeLines("This\nis\na\ntest",tmpFile)
+  resumableDownload(sprintf('file://%s',tmpFile),tmpFile2)
+  expect_equal(readLines(tmpFile2),c('This','is','a','test'))
+  expect_true(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2)$success)
+  expect_equal(readLines(tmpFile2),c('This','is','a','test'))
+  writeLines("NEWZ\nZZ",tmpFile3)
+  resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3)
+  expect_equal(readLines(tmpFile2),c('NEWZ','ZZ','a','test'))
+  writeLines("NEWZ\nZZ",tmpFile3)
+  expect_true(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3,resume=FALSE)$success)
+  expect_equal(readLines(tmpFile2),c('This','is','a','test'))
+  expect_error(resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2),'error')
+  expect_silent(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3,quiet=TRUE)) #this doesn't actually verify curl is silent
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE)},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)()),'^Download failed.$')
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'XYZ.')
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'XYZ".$')
+  expect_error(with_mock('curl::multi_download'=function(...){writeLines('XXX',list(...)[[2]]);data.frame(success=FALSE,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2,tmpFile=tmpFile3)),'Progress')
 })

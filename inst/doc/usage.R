@@ -25,6 +25,9 @@ library(taxonomizr)
 #  prepareDatabase(getAccessions=FALSE)
 
 ## ----eval=FALSE---------------------------------------------------------------
+#  prepareDatabase(types='prot')
+
+## ----eval=FALSE---------------------------------------------------------------
 #  blastResults<-read.table('XXXX.blast',header=FALSE,stringsAsFactors=FALSE)
 #  #grab the 4th |-separated field from the reference name in the second column
 #  accessions<-sapply(strsplit(blastResults[,2],'\\|'),'[',4)
@@ -51,6 +54,22 @@ library(taxonomizr)
 ## ----eval=FALSE---------------------------------------------------------------
 #  taxa<-getTaxonomy(taxaId,'accessionTaxa.sql')
 #  print(taxa)
+
+## ----eval=FALSE---------------------------------------------------------------
+#  getDescendants(207598,'accessionTaxa.sql')
+
+## ----eval=FALSE---------------------------------------------------------------
+#  getDescendants(207598,'accessionTaxa.sql','genus')
+
+## ----eval=FALSE---------------------------------------------------------------
+#  getCommon(c(9913,9606),'accessionTaxa.sql')
+
+## ----eval=FALSE---------------------------------------------------------------
+#  getCommon(c(9913,9606,9894),'accessionTaxa.sql',c('genbank common name','common name'))
+
+## ----eval=FALSE---------------------------------------------------------------
+#  taxonomizr::getNamesAndNodes()
+#  taxonomizr::read.names.sql('names.dmp','nameNode.sqlite',overwrite=TRUE)
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  condenseTaxa(taxa)

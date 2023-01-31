@@ -4,6 +4,15 @@
 [![codecov](https://codecov.io/gh/sherrillmix/taxonomizr/branch/master/graph/badge.svg)](https://app.codecov.io/gh/sherrillmix/taxonomizr)
 [![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/taxonomizr)](https://cran.r-project.org/package=taxonomizr)
 
+## Note: NCBI Name changes in early 2023
+Please note that the [NCBI is planning to change their naming of several major prokaryote phylums](https://ncbiinsights.ncbi.nlm.nih.gov/2022/11/14/prokaryotic-phylum-name-changes/) e.g. [Firmicutes will become Bacillota](https://ftp.ncbi.nih.gov/pub/taxonomy/Major_phylum_updates_for_prokaryotes_2023.txt). The exact date that this transition will percolate into the taxonomy downloads used for this package is not precisely defined but it seems likely to be sometime early in 2023.
+
+Please watch out for any problems that could arise. For example: 
+  * names of assigned taxonomy may shift after updating a database to a post-change version
+  * comparisons of old analyses performed pre-change to new analyses performed post-change will need to be done with care
+
+If I understand things correctly, then the actual taxonomy ID will not change so it might be wise to retain the taxonomy ID for all analyses. Then on final analysis, the taxonomic names can be assigned based on whatever naming scheme is in use at that time.
+
 ## Introduction
 
 `taxonomizr` provides some simple functions to parse NCBI taxonomy files and accession dumps and efficiently use them to assign [taxonomy](https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/) to accession numbers or taxonomic IDs. This is useful for example to assign taxonomy to BLAST results. This is all done locally after downloading the appropriate files from NCBI using included functions (see [below](#preparation)). 
@@ -20,6 +29,7 @@ More specialized functions are:
  * `condenseTaxa`: condense a set of taxa to their most specific common branch
  * `makeNewick`: generate a Newick formatted tree from taxonomic output
  * `getAccessions`: find accessions for a given taxonomic ID
+ * `getDescendants`: find descendants for a given taxonomic ID
 
 And a simple use case might look like (see below for more details):
 
@@ -141,6 +151,55 @@ prepareDatabase(getAccessions=FALSE)
 ## [1] "nameNode.sqlite"
 ```
 
+And if you area assigning taxonomy to protein data, then you would want to grab the `prot.accession2taxid.gz` from NCBI by specifying the `types='prot'` argument (or `types=c("nucl_gb", "nucl_wgs","prot")` for proteins and nucleotides):
+
+
+```r
+prepareDatabase(types='prot')
+```
+
+```
+## Downloading names and nodes with getNamesAndNodes()
+```
+
+```
+## Preprocessing names with read.names.sql()
+```
+
+```
+## Preprocessing nodes with read.nodes.sql()
+```
+
+```
+## Downloading accession2taxid with getAccession2taxid()
+```
+
+```
+## This can be a big (several gigabytes) download. Please be patient and use a fast connection.
+```
+
+```
+## Preprocessing accession2taxid with read.accession2taxid()
+```
+
+```
+## Reading ./prot.accession2taxid.gz.
+```
+
+```
+## Reading in values. This may take a while.
+```
+
+```
+## Adding index. This may also take a while.
+```
+
+```
+## [1] "nameNode.sqlite"
+```
+
+
+
 ## Assigning taxonomy
 
 ### Producing accession numbers
@@ -253,6 +312,101 @@ print(taxa)
 ## 9605 NA            
 ## 9852 "Alces alces"
 ```
+### Finding descendants for a given taxa
+The function `getDescents` can be used to find all the descendants at a taxonomic level for a given taxa. For example to find all species (the default) in the Homininae subfamily (taxonomic ID 207598):
+
+```r
+getDescendants(207598,'accessionTaxa.sql')
+```
+
+```
+## [1] "Gorilla gorilla"                   "Gorilla beringei"                 
+## [3] "Pan paniscus"                      "Pan troglodytes"                  
+## [5] "Homo sapiens"                      "Homo heidelbergensis"             
+## [7] "Homo sapiens environmental sample" "Homo sp."
+```
+
+Or all genuses:
+
+```r
+getDescendants(207598,'accessionTaxa.sql','genus')
+```
+
+```
+## [1] "Gorilla" "Pan"     "Homo"
+```
+
+
+Note that an index for the nodes table was added in v0.10.1 to make this run faster. If your database was created prior to v0.10.1 and you need maximum speed for finding descendants then then please regenerate the database.
+
+### Finding common names for taxonomic IDs
+If you'd like to find all common and other types of names for a given taxa ID then you can use `getCommon`:
+
+
+```r
+getCommon(c(9913,9606),'accessionTaxa.sql')
+```
+
+```
+## [[1]]
+##                         name                type
+## 1                  Bos bovis             synonym
+## 2     Bos primigenius taurus             synonym
+## 3  Bos taurus Linnaeus, 1758           authority
+## 4                 Bos taurus     scientific name
+## 5      Bovidae sp. Adi Nefas            includes
+## 6                     bovine         common name
+## 7                     cattle genbank common name
+## 8                        cow         common name
+## 9                  dairy cow         common name
+## 10           domestic cattle         common name
+## 11              domestic cow         common name
+## 12                        ox         common name
+## 13                      oxen         common name
+## 
+## [[2]]
+##                          name                type
+## 1 Homo sapiens Linnaeus, 1758           authority
+## 2                Homo sapiens     scientific name
+## 3                       human genbank common name
+```
+
+Or specify only a certain type(s) of name ("common" names seem to often be split between "common name" and "genbank common name"):
+
+
+```r
+getCommon(c(9913,9606,9894),'accessionTaxa.sql',c('genbank common name','common name'))
+```
+
+```
+## [[1]]
+##              name                type
+## 1          bovine         common name
+## 2          cattle genbank common name
+## 3             cow         common name
+## 4       dairy cow         common name
+## 5 domestic cattle         common name
+## 6    domestic cow         common name
+## 7              ox         common name
+## 8            oxen         common name
+## 
+## [[2]]
+##    name                type
+## 1 human genbank common name
+## 
+## [[3]]
+##      name                type
+## 1 giraffe genbank common name
+```
+
+Note that databases created with `taxonomizr` versions earlier than v0.9.4 do not contain the `type` field and so the database will have to be reloaded to use this function. For example, this could be done by calling:
+
+
+```r
+taxonomizr::getNamesAndNodes()
+taxonomizr::read.names.sql('names.dmp','nameNode.sqlite',overwrite=TRUE)
+```
+
 
 ### Condensing taxonomy
 You can use the `condenseTaxa` function to find the agreements among taxonomic hits. For example to condense the taxonomy from the previous section to the lowest taxonomic rank shared by all three taxa:
@@ -516,6 +670,19 @@ Note that taxa may be the most specific taxon for a given taxa in the taxonomy m
 
 
 ## Changelog
+### v0.10.2
+  * Behind the scenes switch to `multi_download` function from `curl` package to allow download resumption on interrupted downloads. This adds a dependency that `curl` package be >=5.0.0.
+  * Add `protocol` option to choose between FTP and HTTP protocols for downloading. The two protocols should perform similarly and the relative speeds of NCBI's ftp and http servers seem to vary so probably not a whole lot of reason to choose one over the other unless a firewall is blocking FTP ports.
+
+### v0.10.1
+  * Add `getDescendants` function to get all descendants for a given taxon
+
+### v0.9.4
+  * Add `getCommon` function to get all names in the database for a given taxa ID
+
+### v0.9.3
+  * Fix bug in testing script
+
 ### v0.9.2
   * Allow factors as input to `accessionToTaxa`
   * Document sqlite pragmas for `read.accession2taxid`

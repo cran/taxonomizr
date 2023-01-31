@@ -9,15 +9,15 @@ Authors@R: c(person("Scott", "Sherrill-Mix", role = c("aut", "cre"),
                      email = "shescott@upenn.edu"))
 BugReports: https://github.com/sherrillmix/taxonomizr/issues
 Description: Functions for assigning taxonomy to NCBI accession numbers and taxon IDs based on NCBI's accession2taxid and taxdump files. This package allows the user to download NCBI data dumps and create a local database for fast and local taxonomic assignment.
-Version: 0.9.3
-Date: 2022-06-24
+Version: 0.10.2
+Date: 2023-01-31
 Suggests: testthat, knitr, rmarkdown
 Depends: R (>= 3.0.0)
-Imports: RSQLite, R.utils, data.table, curl
+Imports: RSQLite, R.utils, data.table, curl (>= 5.0.0)
 Encoding: UTF-8
-RoxygenNote: 7.2.0
+RoxygenNote: 7.2.1
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2022-06-24 20:55:55 UTC; scott
+Packaged: 2023-01-31 15:39:24 UTC; scott
 Repository: CRAN
-Date/Publication: 2022-06-26 21:40:02 UTC
+Date/Publication: 2023-01-31 17:20:02 UTC

@@ -100,9 +100,9 @@ read.names.sql<-function(nameFile,sqlFile='nameNode.sqlite',overwrite=FALSE){
   }
   splitLines<-do.call(rbind,strsplit(readLines(nameFile),'\\s*\\|\\s*'))
   isScientific<-splitLines[,4]=='scientific name'
-  splitLines<-splitLines[,-(3:4)]
-  colnames(splitLines)<-c('id','name')
-  splitLines<-data.frame('id'=as.integer(splitLines[,'id']),'name'=splitLines[,'name'],'scientific'=isScientific,stringsAsFactors=FALSE)
+  splitLines<-splitLines[,-(3)]
+  colnames(splitLines)<-c('id','name','type')
+  splitLines<-data.frame('id'=as.integer(splitLines[,'id']),'name'=splitLines[,'name'],'scientific'=isScientific,'type'=splitLines[,'type'],stringsAsFactors=FALSE)
   db <- RSQLite::dbConnect(RSQLite::SQLite(), dbname=sqlFile)
   on.exit(RSQLite::dbDisconnect(db),add=TRUE)
   RSQLite::dbWriteTable(conn = db, name = "names", value=splitLines)
@@ -183,6 +183,7 @@ read.nodes.sql<-function(nodeFile,sqlFile='nameNode.sqlite',overwrite=FALSE){
   on.exit(RSQLite::dbDisconnect(db),add=TRUE)
   RSQLite::dbWriteTable(conn = db, name = "nodes", value =splitLines)
   RSQLite::dbExecute(db,"CREATE INDEX index_nodes_id ON nodes (id)")
+  RSQLite::dbExecute(db,"CREATE INDEX index_nodes_parent ON nodes (parent)")
   return(invisible(sqlFile))
 }
 
@@ -210,7 +211,7 @@ lastNotNa<-function(x,default='Unknown'){
 #' A convenience function to read in a large file piece by piece, process it (hopefully reducing the size either by summarizing or removing extra rows or columns) and return the output
 #'
 #' @param bigFile a string giving the path to a file to be read in or a connection opened with "r" mode
-#' @param n number of lines to read per chuck
+#' @param n number of lines to read per chunk
 #' @param FUN a function taking the unparsed lines from a chunk of the bigfile as a single argument and returning the desired output
 #' @param vocal if TRUE cat a "." as each chunk is processed
 #' @param ... any additional arguments to FUN
@@ -442,7 +443,7 @@ getTaxonomy2<-function(ids,taxaNodes ,taxaNames, desiredTaxa=c('superkingdom','p
 }
 
 
-getParentNodes<-function(ids,sqlFile='nameNode.sqlite'){
+getParentNodes<-function(ids,sqlFile='nameNode.sqlite',getDescendants=FALSE){
   ids<-as.numeric(ids)
   tmp<-tempfile()
   on.exit(file.remove(tmp))
@@ -453,10 +454,16 @@ getParentNodes<-function(ids,sqlFile='nameNode.sqlite'){
   db <- RSQLite::dbConnect(RSQLite::SQLite(), dbname=sqlFile)
   on.exit(RSQLite::dbDisconnect(db),add=TRUE)
   RSQLite::dbExecute(db, sprintf("ATTACH '%s' AS tmp",tmp))
-  taxaDf<-RSQLite::dbGetQuery(db,'SELECT tmp.query.id, name,parent, rank FROM tmp.query LEFT OUTER JOIN nodes ON tmp.query.id=nodes.id LEFT OUTER JOIN names ON tmp.query.id=names.id WHERE names.scientific=1 OR names.scientific IS NULL')
-  if(!identical(taxaDf$id,unname(ids)))stop(simpleError('Problem finding ids')) #don't actually need the unname here since as.numeric strips names but good to be safe
-  return(taxaDf[,c('name','parent','rank')])
+  if(getDescendants){
+    taxaDf<-RSQLite::dbGetQuery(db,'SELECT nodes.id as descendant, name, rank FROM tmp.query LEFT OUTER JOIN nodes ON tmp.query.id=nodes.parent LEFT OUTER JOIN names ON descendant=names.id WHERE (names.scientific=1 OR names.scientific IS NULL) AND nodes.id != nodes.parent')
+    return(taxaDf[,c('name','descendant','rank')])
+  }else{
+    taxaDf<-RSQLite::dbGetQuery(db,'SELECT tmp.query.id, name,parent, rank FROM tmp.query LEFT OUTER JOIN nodes ON tmp.query.id=nodes.id LEFT OUTER JOIN names ON tmp.query.id=names.id WHERE names.scientific=1 OR names.scientific IS NULL')
+    if(!identical(taxaDf$id,unname(ids))&!getDescendants)stop(simpleError('Problem finding ids')) #don't actually need the unname here since as.numeric strips names but good to be safe
+    return(taxaDf[,c('name','parent','rank')])
+  }
 }
+
 
 checkDownloadMd5<-function(url,file,errorIfNoMd5=FALSE){
   md5<-sprintf('%s.md5',url)
@@ -473,7 +480,7 @@ checkDownloadMd5<-function(url,file,errorIfNoMd5=FALSE){
 
 #' Get taxonomic ranks for a taxa
 #'
-#' Take NCBI taxa IDs and get the corresponding taxa ranks from name and node SQLite database
+#' Take NCBI taxa IDs and get the corresponding taxa ranks from a name and node SQLite database
 #'
 #' @param ids a vector of ids to find taxonomy for
 #' @param sqlFile a string giving the path to a SQLite file containing names and nodes tables
@@ -549,7 +556,7 @@ checkDownloadMd5<-function(url,file,errorIfNoMd5=FALSE){
 #' writeLines(nodesText,tmpFile)
 #' taxaNodes<-read.nodes.sql(tmpFile,sqlFile)
 #' getTaxonomy(c(9606,9605),sqlFile)
-getTaxonomy<-function (ids,sqlFile='nameNode.sqlite',..., desiredTaxa=c('superkingdom','phylum','class','order','family','genus','species')){
+getTaxonomy<-function(ids,sqlFile='nameNode.sqlite',..., desiredTaxa=c('superkingdom','phylum','class','order','family','genus','species')){
   if('data.table' %in% class(sqlFile)){
     return(getTaxonomy2(ids,sqlFile,...,desiredTaxa=desiredTaxa))
   }
@@ -571,6 +578,99 @@ getTaxonomy<-function (ids,sqlFile='nameNode.sqlite',..., desiredTaxa=c('superki
   }
   out<-taxa[format(ids,scientific=FALSE),,drop=FALSE]
   return(out)
+}
+
+#' Get descendant ranks for a taxa
+#'
+#' Take a NCBI taxa ID and get the descendant taxa matching a given rank from a name and node SQLite database
+#'
+#' @param ids a vector of ids to find descendants for
+#' @param sqlFile a string giving the path to a SQLite file containing names and nodes tables
+#' @param desiredTaxa a vector of strings giving the desired taxa levels
+#' @return a vector of strings giving the names a for each descendant taxa
+#' @export
+#' @seealso \code{\link{read.nodes.sql}}, \code{\link{read.names.sql}}
+#' @examples
+#' sqlFile<-tempfile()
+#' namesText<-c(
+#'   "1\t|\troot\t|\t\t|\tscientific name\t|",
+#'   "2\t|\tBacteria\t|\tBacteria <prokaryotes>\t|\tscientific name\t|",
+#'   "2\t|\tProcaryotae\t|\tProcaryotae <Bacteria>\t|\tin-part\t|",
+#'   "9606\t|\tHomo sapiens\t|\t\t|\tscientific name",
+#'   "9605\t|\tHomo\t|\t\t|\tscientific name",
+#'   "207598\t|\tHomininae\t|\t\t|\tscientific name",
+#'   "9604\t|\tHominidae\t|\t\t|\tscientific name",
+#'   "314295\t|\tHominoidea\t|\t\t|\tscientific name",
+#'   "9526\t|\tCatarrhini\t|\t\t|\tscientific name",
+#'   "314293\t|\tSimiiformes\t|\t\t|\tscientific name",
+#'   "376913\t|\tHaplorrhini\t|\t\t|\tscientific name",
+#'   "9443\t|\tPrimates\t|\t\t|\tscientific name",
+#'   "314146\t|\tEuarchontoglires\t|\t\t|\tscientific name",
+#'   "1437010\t|\tBoreoeutheria\t|\t\t|\tscientific name",
+#'   "9347\t|\tEutheria\t|\t\t|\tscientific name",
+#'   "32525\t|\tTheria\t|\t\t|\tscientific name",
+#'   "40674\t|\tMammalia\t|\t\t|\tscientific name",
+#'   "32524\t|\tAmniota\t|\t\t|\tscientific name",
+#'   "32523\t|\tTetrapoda\t|\t\t|\tscientific name",
+#'   "1338369\t|\tDipnotetrapodomorpha\t|\t\t|\tscientific name",
+#'   "8287\t|\tSarcopterygii\t|\t\t|\tscientific name",
+#'   "117571\t|\tEuteleostomi\t|\t\t|\tscientific name",
+#'   "117570\t|\tTeleostomi\t|\t\t|\tscientific name",
+#'   "7776\t|\tGnathostomata\t|\t\t|\tscientific name",
+#'   "7742\t|\tVertebrata\t|\t\t|\tscientific name",
+#'   "89593\t|\tCraniata\t|\t\t|\tscientific name",
+#'   "7711\t|\tChordata\t|\t\t|\tscientific name",
+#'   "33511\t|\tDeuterostomia\t|\t\t|\tscientific name",
+#'   "33213\t|\tBilateria\t|\t\t|\tscientific name",
+#'   "6072\t|\tEumetazoa\t|\t\t|\tscientific name",
+#'   "33208\t|\tMetazoa\t|\t\t|\tscientific name",
+#'   "33154\t|\tOpisthokonta\t|\t\t|\tscientific name",
+#'   "2759\t|\tEukaryota\t|\t\t|\tscientific name",
+#'   "131567\t|\tcellular organisms\t|\t\t|\tscientific name",
+#'   "1425170\t|\tHomo heidelbergensis\t|\t\t|\tscientific name"
+#' )
+#' tmpFile<-tempfile()
+#' writeLines(namesText,tmpFile)
+#' taxaNames<-read.names.sql(tmpFile,sqlFile)
+#' nodesText<-c(
+#'  "1\t|\t1\t|\tno rank\t|\t\t|\t8\t|\t0\t|\t1\t|\t0\t|\t0\t|\t0\t|\t0\t|\t0\t|\t\t|",
+#'   "2\t|\t131567\t|\tsuperkingdom\t|\t\t|\t0\t|\t0\t|\t11\t|\t0\t|\t0\t|\t0\t|\t0\t|\t0\t|\t\t|",
+#'   "6\t|\t335928\t|\tgenus\t|\t\t|\t0\t|\t1\t|\t11\t|\t1\t|\t0\t|\t1\t|\t0\t|\t0\t|\t\t|",
+#'   "7\t|\t6\t|\tspecies\t|\tAC\t|\t0\t|\t1\t|\t11\t|\t1\t|\t0\t|\t1\t|\t1\t|\t0\t|\t\t|",
+#'   "9\t|\t32199\t|\tspecies\t|\tBA\t|\t0\t|\t1\t|\t11\t|\t1\t|\t0\t|\t1\t|\t1\t|\t0\t|\t\t|",
+#'   "9606\t|\t9605\t|\tspecies", "9605\t|\t207598\t|\tgenus", "207598\t|\t9604\t|\tsubfamily",
+#'   "9604\t|\t314295\t|\tfamily", "314295\t|\t9526\t|\tsuperfamily",
+#'   "9526\t|\t314293\t|\tparvorder", "314293\t|\t376913\t|\tinfraorder",
+#'   "376913\t|\t9443\t|\tsuborder", "9443\t|\t314146\t|\torder",
+#'   "314146\t|\t1437010\t|\tsuperorder", "1437010\t|\t9347\t|\tno rank",
+#'   "9347\t|\t32525\t|\tno rank", "32525\t|\t40674\t|\tno rank",
+#'   "40674\t|\t32524\t|\tclass", "32524\t|\t32523\t|\tno rank", "32523\t|\t1338369\t|\tno rank",
+#'   "1338369\t|\t8287\t|\tno rank", "8287\t|\t117571\t|\tno rank",
+#'   "117571\t|\t117570\t|\tno rank", "117570\t|\t7776\t|\tno rank",
+#'   "7776\t|\t7742\t|\tno rank", "7742\t|\t89593\t|\tno rank", "89593\t|\t7711\t|\tsubphylum",
+#'   "7711\t|\t33511\t|\tphylum", "33511\t|\t33213\t|\tno rank", "33213\t|\t6072\t|\tno rank",
+#'   "6072\t|\t33208\t|\tno rank", "33208\t|\t33154\t|\tkingdom",
+#'   "33154\t|\t2759\t|\tno rank", "2759\t|\t131567\t|\tsuperkingdom",
+#'   "131567\t|\t1\t|\tno rank", '1425170\t|\t9605\t|\tspecies'
+#' )
+#' writeLines(nodesText,tmpFile)
+#' taxaNodes<-read.nodes.sql(tmpFile,sqlFile)
+#' getDescendants(c(9604),sqlFile)
+getDescendants<-function(ids,sqlFile='nameNode.sqlite', desiredTaxa='species'){
+  ids<-unique(as.numeric(ids))
+  if(length(ids)==0)return(NULL)
+  rep<-0
+  currentIds<-ids
+  allIds<-c()
+  while(length(currentIds)>0){
+    descendants<-getParentNodes(currentIds,sqlFile,TRUE)
+    descendants<-descendants[!is.na(descendants$descendant),]
+    allIds<-unique(c(allIds,descendants[descendants$rank %in% desiredTaxa,'name']))
+    rep<-rep+1
+    currentIds<-descendants$descendant
+    if(rep>200)stop('Found cycle in taxonomy')
+  }
+  return(allIds)
 }
 
 #' Get all taxonomy for a taxa
@@ -783,6 +883,7 @@ condenseTaxa<-function(taxaTable,groupings=rep(1,nrow(taxaTable))){
 #' @param outDir the directory to put names.dmp and nodes.dmp in
 #' @param url the url where taxdump.tar.gz is located
 #' @param fileNames the filenames desired from the tar.gz file
+#' @param protocol the protocol to be used for downloading. Probably either \code{'http'} or \code{'ftp'}. Overridden if \code{url} is provided directly
 #' @return a vector of file path strings of the locations of the output files
 #' @seealso \code{\link{read.nodes.sql}}, \code{\link{read.names.sql}}
 #' @references \url{https://ftp.ncbi.nih.gov/pub/taxonomy/}, \url{https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/}
@@ -791,20 +892,20 @@ condenseTaxa<-function(taxaTable,groupings=rep(1,nrow(taxaTable))){
 #' \dontrun{
 #'   getNamesAndNodes()
 #' }
-getNamesAndNodes<-function(outDir='.',url='ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz',fileNames=c('names.dmp','nodes.dmp')){
+getNamesAndNodes<-function(outDir='.',url=sprintf('%s://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz',protocol),fileNames=c('names.dmp','nodes.dmp'),protocol='ftp'){
   outFiles<-file.path(outDir,fileNames)
   if(all(file.exists(outFiles))){
     message(paste(outFiles,collapse=', '),' already exist. Delete to redownload')
     return(outFiles)
   }
   base<-basename(url)
-  tmp<-tempfile()
-  dir.create(tmp)
-  tarFile<-file.path(tmp,base)
-  curl::curl_download(url,tarFile,mode='wb',quiet=FALSE)
+  tmpDir<-tempfile()
+  dir.create(tmpDir)
+  tarFile<-file.path(tempdir(),base)
+  resumableDownload(url,tarFile,quiet=FALSE)
   if(!checkDownloadMd5(url,tarFile))stop('Downloaded file does not match ',url,' File corrupted or download ended early?')
-  utils::untar(tarFile,fileNames,exdir=tmp,tar='internal')
-  tmpFiles<-file.path(tmp,fileNames)
+  utils::untar(tarFile,fileNames,exdir=tmpDir,tar='internal')
+  tmpFiles<-file.path(tmpDir,fileNames)
   if(!all(file.exists(tmpFiles)))stop("Problem finding files ",paste(tmpFiles[!file.exists(tmpFiles)],collapse=', '))
   mapply(file.copy,tmpFiles,outFiles)
   if(!all(file.exists(outFiles)))stop("Problem copying files ",paste(outFiles[!file.exists(outFiles)],collapse=', '))
@@ -819,6 +920,7 @@ getNamesAndNodes<-function(outDir='.',url='ftp://ftp.ncbi.nih.gov/pub/taxonomy/t
 #' @param outDir the directory to put the accession2taxid.gz files in
 #' @param baseUrl the url of the directory where accession2taxid.gz files are located
 #' @param types the types if accession2taxid.gz files desired where type is the prefix of xxx.accession2taxid.gz. The default is to download all nucl_ accessions. For protein accessions, try \code{types=c('prot')}.
+#' @param protocol the protocol to be used for downloading. Probably either \code{'http'} or \code{'ftp'}. Overridden if \code{baseUrl} is provided directly
 #' @return a vector of file path strings of the locations of the output files
 #' @seealso \code{\link{read.accession2taxid}}
 #' @references \url{https://ftp.ncbi.nih.gov/pub/taxonomy/}, \url{https://www.ncbi.nlm.nih.gov/genbank/acc_prefix/}
@@ -833,7 +935,7 @@ getNamesAndNodes<-function(outDir='.',url='ftp://ftp.ncbi.nih.gov/pub/taxonomy/t
 #'
 #'   getAccession2taxid()
 #' }
-getAccession2taxid<-function(outDir='.',baseUrl='ftp://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/',types=c('nucl_gb','nucl_wgs')){
+getAccession2taxid<-function(outDir='.',baseUrl=sprintf('%s://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/',protocol),types=c('nucl_gb','nucl_wgs'),protocol='ftp'){
   message('This can be a big (several gigabytes) download. Please be patient and use a fast connection.')
   fileNames<-sprintf('%s.accession2taxid.gz',types)
   outFiles<-file.path(outDir,fileNames)
@@ -844,7 +946,7 @@ getAccession2taxid<-function(outDir='.',baseUrl='ftp://ftp.ncbi.nih.gov/pub/taxo
   if(!substring(baseUrl,nchar(baseUrl)) %in% c('/','\\'))baseUrl<-sprintf('%s/',baseUrl)
   urls<-paste(baseUrl,fileNames,sep='')
   mapply(function(xx,yy){
-    curl::curl_download(xx,yy,mode='wb',quiet=FALSE)
+    resumableDownload(xx,yy)
     if(!checkDownloadMd5(xx,yy))stop('Downloaded file does not match ',xx,' File corrupted or download ended early?')
   },urls,outFiles)
   return(outFiles)
@@ -899,7 +1001,7 @@ getId2<-function(taxa,taxaNames){
 #' @param sqlFile a string giving the path to a SQLite file containing a names tables
 #' @param onlyScientific If TRUE then only match to scientific names. If FALSE use all names in database for matching (potentially increasing ambiguous matches).
 #' @return a vector of character strings giving taxa IDs (potentially comma concatenated for any taxa with ambiguous names)
-#' @seealso \code{\link{getTaxonomy}}, \code{\link{read.names.sql}}
+#' @seealso \code{\link{getTaxonomy}}, \code{\link{read.names.sql}}, \code{\link{getCommon}}
 #' @export
 #' @examples
 #' namesText<-c(
@@ -937,6 +1039,73 @@ getId<-function(taxa,sqlFile='nameNode.sqlite',onlyScientific=TRUE){
   out<-tapply(taxaDf$id,taxaDf$name,FUN=function(xx)paste(sort(xx),collapse=','))
   return(as.character(unname(out[taxa])))
 }
+
+#' Find common names for a given taxa
+#'
+#' Find all common names recorded for a taxa in the NCBI taxonomy. Use \code{\link{getTaxonomy}} for scientific names.
+#'
+#' @param taxa a vector of accession numbers
+#' @param sqlFile a string giving the path to a SQLite file containing a names tables
+#' @param types a vector of strings giving the type of names desired e.g. "common name". If NULL then all types are returned
+#' @return a named list of data.frames where each element corresponds to the query taxa IDs. Each data.frame contains columns name and type and each gives an available names and its name type
+#' @seealso \code{\link{getTaxonomy}}, \code{\link{read.names.sql}}, \code{\link{getId}}
+#' @export
+#' @examples
+#' namesText<-"9894\t|\tGiraffa camelopardalis (Linnaeus, 1758)\t|\t\t|\tauthority\t|
+#' 9894\t|\tGiraffa camelopardalis\t|\t\t|\tscientific name\t|
+#' 9894\t|\tgiraffe\t|\t\t|\tgenbank common name\t|
+#' 9909\t|\taurochs\t|\t\t|\tgenbank common name\t|
+#' 9909\t|\tBos primigenius Bojanus, 1827\t|\t\t|\tauthority\t|
+#' 9909\t|\tBos primigenius\t|\t\t|\tscientific name\t|
+#' 9913\t|\tBos bovis\t|\t\t|\tsynonym\t|
+#' 9913\t|\tBos primigenius taurus\t|\t\t|\tsynonym\t|
+#' 9913\t|\tBos taurus Linnaeus, 1758\t|\t\t|\tauthority\t|
+#' 9913\t|\tBos taurus\t|\t\t|\tscientific name\t|
+#' 9913\t|\tBovidae sp. Adi Nefas\t|\t\t|\tincludes\t|
+#' 9913\t|\tbovine\t|\t\t|\tcommon name\t|
+#' 9913\t|\tcattle\t|\t\t|\tgenbank common name\t|
+#' 9913\t|\tcow\t|\t\t|\tcommon name\t|
+#' 9913\t|\tdairy cow\t|\t\t|\tcommon name\t|
+#' 9913\t|\tdomestic cattle\t|\t\t|\tcommon name\t|
+#' 9913\t|\tdomestic cow\t|\t\t|\tcommon name\t|
+#' 9913\t|\tox\t|\t\t|\tcommon name\t|
+#' 9913\t|\toxen\t|\t\t|\tcommon name\t|
+#' 9916\t|\tBoselaphus\t|\t\t|\tscientific name\t|"
+#' tmpFile<-tempfile()
+#' writeLines(namesText,tmpFile)
+#' sqlFile<-tempfile()
+#' read.names.sql(tmpFile,sqlFile)
+#' getCommon(9909,sqlFile)
+#' sapply(getCommon(c(9894,9913),sqlFile),function(xx)paste(xx$name,collapse='; '))
+#' getCommon(c(9999999,9916,9894,9913),sqlFile,c("common name","genbank common name"))
+getCommon<-function(taxa,sqlFile='nameNode.sqlite',types=NULL){
+  if('data.table' %in% class(sqlFile))stop('data.table name nodes file not supported')
+  tmp<-tempfile()
+  on.exit(file.remove(tmp))
+  uniqTaxa<-unique(taxa)
+  tmpDb <- RSQLite::dbConnect(RSQLite::SQLite(), dbname=tmp)
+  on.exit(RSQLite::dbDisconnect(tmpDb),add=TRUE)
+  RSQLite::dbWriteTable(tmpDb,'query',data.frame('accession'=uniqTaxa,stringsAsFactors=FALSE),overwrite=TRUE)
+  db <- RSQLite::dbConnect(RSQLite::SQLite(), dbname=sqlFile)
+  on.exit(RSQLite::dbDisconnect(db),add=TRUE)
+  if(!'type' %in% RSQLite::dbListFields(db,'names'))stop('The type field is not included in the ',sqlFile,' database. Please recreate the database to update')
+  RSQLite::dbExecute(db, sprintf("ATTACH '%s' AS tmp",tmp))
+  query<-sprintf('SELECT tmp.query.accession, names.name, names.type FROM tmp.query JOIN names ON tmp.query.accession=names.id%s',ifelse(is.null(types),'', sprintf(' WHERE names.type IN ("%s")',paste(types,collapse='","'))))
+  taxaDf<-RSQLite::dbGetQuery(db,query)
+  out<-split(taxaDf[,c('name','type')],taxaDf$accession)
+  out<-lapply(out,function(xx){rownames(xx)<-NULL;xx})
+  return(unname(out[as.character(taxa)]))
+}
+
+#attachTempDb<-function(db,df){
+  #tmp<-tempfile()
+  #on.exit(file.remove(tmp)) #will this kill the connection for the upstream function? Move to object?
+  #uniqTaxa<-unique(taxa)
+  #tmpDb <- RSQLite::dbConnect(RSQLite::SQLite(), dbname=tmp)
+  #on.exit(RSQLite::dbDisconnect(tmpDb),add=TRUE)
+  #RSQLite::dbWriteTable(tmpDb,'query',data.frame('accession'=uniqTaxa,stringsAsFactors=FALSE),overwrite=TRUE)
+  #RSQLite::dbExecute(db, sprintf("ATTACH '%s' AS tmp",tmp))
+#}
 
 
 #' Download data from NCBI and set up SQLite database
@@ -1195,6 +1364,38 @@ topoSort<-function(vectors,maxIter=1000,errorIfAmbiguous=FALSE){
   }
   return(unname(out))
 }
+
+#' Download file using curl allowing resumption of interrupted files
+#'
+#' A helper function that uses the \code{curl} package's \code{multi_download} to download a file using a temporary file to store progress and resume downloading on interruption.
+#' @param url The address to download from
+#' @param outFile The file location to store final download at
+#' @param tmpFile The file location to store the intermediate download at
+#' @param quiet If TRUE show the progress reported by \code{multi_download}
+#' @param resume If TRUE try to resume interrupted downloads using intermediate file \code{tmpFile}. Otherwise delete \code{tempFile} on error
+#' @param ... Additional arguments to \code{multi_download}
+#' @return invisibly return the output frmo multi_download
+#' @seealso \code{\link[curl]{multi_download}}
+#' @examples
+#' \dontrun{
+#'   url<-'https://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.FULL.1.gz'
+#'   resumableDownload(url,'downloadedFile.gz')
+#' }
+resumableDownload<-function(url,outFile=basename(url),tmpFile=sprintf('%s.__TMP__',outFile),quiet=FALSE,resume=TRUE,...){
+  if(!resume) on.exit(unlink(tmpFile))
+  out<-curl::multi_download(url,tmpFile,progress=!quiet,resume=resume,...)
+  if(is.na(out$success)||!out$success){
+    if(length(out$error)>0&&!is.na(out$error))extraError<-sprintf(' with error: "%s"',out$error)
+    else extraError<-''
+    if(resume&&file.exists(tmpFile)&&file.size(tmpFile)>0){
+      extraError<-sprintf('%s. Progress is saved in %s and continued download can be attempted by repeating the previous command.\nDelete %s or set resume=FALSE to start from scratch',extraError,tmpFile,tmpFile)
+    }
+    stop('Download failed',extraError,'.')
+  }
+  file.rename(tmpFile,outFile)
+  invisible(out)
+}
+
 
 #' Switch from data.table to SQLite
 #'
