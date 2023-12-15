@@ -558,17 +558,16 @@ test_that("Test checkDownloadMd5",{
   writeLines('THISISSOMEDATA',tmp)
   writeLines('THISISSOMEOTHERDATA',tmp2)
   md5<-tools::md5sum(tmp)
-  expect_true(checkDownloadMd5(sprintf('file://%s',tmp),tmp2)) #no md5 so can't check and doesn't error
-  expect_error(checkDownloadMd5(sprintf('file://%s',tmp),tmp2,TRUE),'md5') #no md5 so can't check and error flag set
-  writeLines(sprintf('%s EXTRASTUFF',md5),sprintf('%s.md5',tmp))
-  expect_false(checkDownloadMd5(sprintf('file://%s',tmp),tmp2))
-  file.copy(tmp,tmp2,TRUE)
-  expect_true(checkDownloadMd5(sprintf('file://%s',tmp),tmp2))
-  writeLines(sprintf('SOMEOTHERMD5 EXTRASTUFF %s',md5),sprintf('%s.md5',tmp))
-  expect_false(checkDownloadMd5(sprintf('file://%s',tmp),tmp2))
+  expect_equal(checkDownloadMd5(sprintf('file://%s',tmp),tmp),list('result'=TRUE,'remote'=as.character(NA),'local'=as.character(NA))) #no md5 so can't check and doesn't error
+  expect_equal(checkDownloadMd5(sprintf('file://%s',tmp),tmp),list('result'=TRUE,'remote'=as.character(NA),'local'=as.character(NA))) #repeat in case funny cache or something
+  expect_error(checkDownloadMd5(sprintf('file://%s',tmp),tmp,TRUE)[['result']],'md5') #no md5 so can't check and error flag set
+  badMd5<-sprintf('%sEXTRASTUFF',md5)
+  writeLines(badMd5,sprintf('%s.md5',tmp))
+  expect_equal(checkDownloadMd5(sprintf('file://%s',tmp),tmp),list('result'=FALSE,'remote'=unname(badMd5),'local'=unname(md5)))
+  writeLines(md5,sprintf('%s.md5',tmp))
+  expect_equal(checkDownloadMd5(sprintf('file://%s',tmp),tmp),list('result'=TRUE,'remote'=unname(md5),'local'=unname(md5)))
+  expect_equal(checkDownloadMd5(sprintf('file://%s',tmp),tmp2),list('result'=FALSE,'remote'=unname(md5),'local'=unname(tools::md5sum(tmp2))))
 })
-
-
 
 test_that("Test accessionToTaxa",{
   taxa<-c(
@@ -690,6 +689,11 @@ test_that("Test getAccession2taxid",{
   file.remove(list.files(tmp2,'^nucl_.*.gz$',full.names=TRUE))
   writeLines(sprintf('%s EXTRATEXT',fakeMd5),sprintf('%s.md5',file.path(tmp,targets[2])))
   expect_error(getAccession2taxid(tmp2,baseUrl=sprintf('file://%s',tmp),types=c('nucl_XxXx','nucl_XyXyX')),NA)
+  expect_error(getAccession2taxid(tmp2,baseUrl=sprintf('file://COMPLETE__/NONSENSE__/PATH__/'),types=c('newFile','newFile2')),NULL) #,'missing|[Cc]ould ?n.t open'  error message too variable across OS
+  #intentional duplication to make sure file not created
+  expect_error(getAccession2taxid(tmp2,baseUrl=sprintf('file://COMPLETE__/NONSENSE__/PATH__/'),types=c('newFile','newFile2')),NULL) #error message too variable across OS
+  expect_false(file.exists(file.path(tmp2,'newFile.accession2taxid.gz')))
+  expect_false(file.exists(file.path(tmp2,'newFile2.accession2taxid.gz')))
 })
 
 test_that("Test getId with deprecated data.table",{
@@ -952,11 +956,22 @@ test_that("Test resumableDownload",{
   expect_equal(readLines(tmpFile2),c('NEWZ','ZZ','a','test'))
   writeLines("NEWZ\nZZ",tmpFile3)
   expect_true(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3,resume=FALSE)$success)
+  expect_message(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3,resume=FALSE),'Modified')
+  expect_message(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3,resume=FALSE,quiet=TRUE),NA)
   expect_equal(readLines(tmpFile2),c('This','is','a','test'))
   expect_error(resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2),'error')
   expect_silent(resumableDownload(sprintf('file://%s',tmpFile),tmpFile2,tmpFile=tmpFile3,quiet=TRUE)) #this doesn't actually verify curl is silent
-  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE)},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)()),'^Download failed.$')
-  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'XYZ.')
-  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'XYZ".$')
-  expect_error(with_mock('curl::multi_download'=function(...){writeLines('XXX',list(...)[[2]]);data.frame(success=FALSE,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2,tmpFile=tmpFile3)),'Progress')
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,status_code=200)},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)()),'^Download failed.$')
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,status_code=200,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'XYZ.')
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=FALSE,status_code=200,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'XYZ".$')
+  expect_error(with_mock('curl::multi_download'=function(...){data.frame(success=TRUE,status_code=400)},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2)),'400')
+  expect_error(with_mock('curl::multi_download'=function(xx,yy,...){file.copy(xx,yy);data.frame(success=TRUE,status_code=200)},resumableDownload(tmpFile,tmpFile2)),NA)
+  expect_error(with_mock('curl::multi_download'=function(xx,yy,...){file.copy(xx,yy);data.frame(success=TRUE,status_code=206)},resumableDownload(tmpFile,tmpFile2)),NA)
+  expect_error(with_mock('curl::multi_download'=function(xx,yy,...){file.copy(xx,yy);data.frame(success=TRUE,status_code=0)},resumableDownload(tmpFile,tmpFile2)),NA)
+  #too small download so just deleted
+  expect_error(with_mock('curl::multi_download'=function(...){writeLines('XXX',list(...)[[2]]);data.frame(success=FALSE,status_code=400,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2,tmpFile=tmpFile3)),'"XYZ".$') #an inverted regex for Progress would be better
+  expect_error(with_mock('curl::multi_download'=function(...){writeLines(paste(rep('X',10000),collapse='Y'),list(...)[[2]]);data.frame(success=FALSE,status_code=400,'error'='XYZ')},resumableDownload('file://NOTAREALFILE.FAKE',tmpFile2,tmpFile=tmpFile3)),'Progress')
+  unlink(tmpFile3)
+  expect_error(resumableDownload("https://ftp.ncbi.nih.gov/NONEXISTENT__/PATH__/notARealFile.txt",tmpFile3),'404')
+  expect_false(file.exists(tmpFile3))
 })

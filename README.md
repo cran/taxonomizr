@@ -1,17 +1,7 @@
 # Convert accession numbers to taxonomy
 
-[![Build Status](https://travis-ci.org/sherrillmix/taxonomizr.svg?branch=master)](https://travis-ci.org/sherrillmix/taxonomizr)
 [![codecov](https://codecov.io/gh/sherrillmix/taxonomizr/branch/master/graph/badge.svg)](https://app.codecov.io/gh/sherrillmix/taxonomizr)
 [![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/taxonomizr)](https://cran.r-project.org/package=taxonomizr)
-
-## Note: NCBI Name changes in early 2023
-Please note that the [NCBI is planning to change their naming of several major prokaryote phylums](https://ncbiinsights.ncbi.nlm.nih.gov/2022/11/14/prokaryotic-phylum-name-changes/) e.g. [Firmicutes will become Bacillota](https://ftp.ncbi.nih.gov/pub/taxonomy/Major_phylum_updates_for_prokaryotes_2023.txt). The exact date that this transition will percolate into the taxonomy downloads used for this package is not precisely defined but it seems likely to be sometime early in 2023.
-
-Please watch out for any problems that could arise. For example: 
-  * names of assigned taxonomy may shift after updating a database to a post-change version
-  * comparisons of old analyses performed pre-change to new analyses performed post-change will need to be done with care
-
-If I understand things correctly, then the actual taxonomy ID will not change so it might be wise to retain the taxonomy ID for all analyses. Then on final analysis, the taxonomic names can be assigned based on whatever naming scheme is in use at that time.
 
 ## Introduction
 
@@ -408,7 +398,7 @@ taxonomizr::read.names.sql('names.dmp','nameNode.sqlite',overwrite=TRUE)
 ```
 
 
-### Condensing taxonomy
+### Condensing taxonomy a.k.a. lowest common ancestor LCA
 You can use the `condenseTaxa` function to find the agreements among taxonomic hits. For example to condense the taxonomy from the previous section to the lowest taxonomic rank shared by all three taxa:
 
 
@@ -667,9 +657,31 @@ makeNewick(taxa,excludeTerminalNAs=TRUE)
 
 Note that taxa may be the most specific taxon for a given taxa in the taxonomy matrix but will not be a leaf in the resulting tree if it appears in other taxonomy e.g. Chordata in this example. 
 
+## Note: NCBI name changes in early 2023
+
+Please note that the [NCBI change their naming of several major prokaryote phylums](https://ncbiinsights.ncbi.nlm.nih.gov/2022/11/14/prokaryotic-phylum-name-changes/) e.g. [Firmicutes became Bacillota](https://ftp.ncbi.nih.gov/pub/taxonomy/Major_taxonomic_updates_2023.txt) in early 2023.
+Please watch out for any problems that could arise. For example: 
+  * names of assigned taxonomy may shift after updating a database to a post-change version
+  * comparisons of old analyses performed pre-change to new analyses performed post-change will need to be done with care
+
+If I understand things correctly, then the actual taxonomy ID will not change so it might be wise to retain the taxonomy ID for all analyses. Then on final analysis, the taxonomic names can be assigned based on whatever naming scheme is in use at that time.
+
 
 
 ## Changelog
+
+### v0.10.5
+  * Catch 404 errors and report as errors
+  * Add resume argument to download functions
+  * Don't retain temp files for downloads if less than 10kb
+  * README touchups
+
+### v0.10.4
+  * Minor improvement to output md5 and modification date for downloads to aid in debugging network issues
+
+### v0.10.3
+  * Minor fix to prevent `accessionToTaxa` from hanging when given numeric inputs
+
 ### v0.10.2
   * Behind the scenes switch to `multi_download` function from `curl` package to allow download resumption on interrupted downloads. This adds a dependency that `curl` package be >=5.0.0.
   * Add `protocol` option to choose between FTP and HTTP protocols for downloading. The two protocols should perform similarly and the relative speeds of NCBI's ftp and http servers seem to vary so probably not a whole lot of reason to choose one over the other unless a firewall is blocking FTP ports.
