@@ -6,10 +6,10 @@
 #  ids<-accessionToTaxa(blastAccessions,'accessionTaxa.sql')
 #  getTaxonomy(ids,'accessionTaxa.sql')
 
-## ---- eval=FALSE--------------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  install.packages("taxonomizr")
 
-## ---- eval=FALSE--------------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  devtools::install_github("sherrillmix/taxonomizr")
 
 ## -----------------------------------------------------------------------------
