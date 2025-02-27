@@ -1,12 +1,12 @@
-249ea5f8a097dc9cd13cfdb0ede88fac *DESCRIPTION
+598d5058fba7254ea47f4956bb79f03d *DESCRIPTION
 b234ee4d69f5fce4486a80fdaf4a4263 *LICENSE
 3a83463b2cd3aedc428c8903411180da *NAMESPACE
-3a0d2f24e45090d1311972ba2336111c *R/taxa.R
-676c2408de3ef0dfa210e5bafd39a051 *README.md
+ab537b3e38994c445310cf6ae14fe9d6 *R/taxa.R
+5ce05838c0329c78d50de9624c129b69 *README.md
 9c2c421298e8f8bfcb9eb5108c4f0ca7 *build/vignette.rds
 435d768442aff17cde886c30164991ef *inst/doc/usage.R
-51c4da5380ce06e16b216dc74fc0c4e6 *inst/doc/usage.Rmd
-d3fe29d532ba45e7832fa635acd8e2b0 *inst/doc/usage.html
+d1b8737182f8bbc51d55d2a15d6d8930 *inst/doc/usage.Rmd
+13a91077806a25a319bffad00431ddf8 *inst/doc/usage.html
 2c6938a3b6c0303311c55f0e328ff746 *inst/testdata/fakeNamesNodes.tar.gz
 6f928eac975decb053a812bf58c4a3c1 *man/accessionToTaxa.Rd
 fc39f17d296a65ca038d98b5b3a69d28 *man/condenseTaxa.Rd
@@ -18,7 +18,7 @@ e8e9c3495ab479bf781e676b888e4308 *man/getId.Rd
 f540636f46822a6c1447da68507bdd93 *man/getId2.Rd
 9954bf6c88730b34c53be6b95ff7282f *man/getNamesAndNodes.Rd
 ef633603d85a981a74348b694673eaa1 *man/getRawTaxonomy.Rd
-0a170ee794b9879f60d055ff642d5268 *man/getTaxonomy.Rd
+246c19ad3a8e74cdebde105ac8f49f48 *man/getTaxonomy.Rd
 939e0aeca4cdde8f33aa0604be8f61a5 *man/getTaxonomy2.Rd
 8420a5306860a41886c0da14e1bf47b0 *man/lastNotNa.Rd
 5e6d614d7a1e327ce0644ec86139c190 *man/makeNewick.Rd
@@ -38,5 +38,5 @@ d47fc7ed590032dbfa141b6952d998d3 *man/trimTaxa.Rd
 c6f8208857cc84cc3694a2f4a566745f *src/taxaTrim.c
 1b509a76cc18244a3847a2ab27ab9f77 *src/taxonomizr-init.c
 09570ff5fc4fe1c8f81b47295a3faafb *tests/testthat.R
-63ce5b91f14a8a4adedb17057dab169d *tests/testthat/test_taxa.R
-51c4da5380ce06e16b216dc74fc0c4e6 *vignettes/usage.Rmd
+f7874129e2f95b09fb8d79c5f2198b6c *tests/testthat/test_taxa.R
+d1b8737182f8bbc51d55d2a15d6d8930 *vignettes/usage.Rmd

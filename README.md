@@ -670,6 +670,16 @@ If I understand things correctly, then the actual taxonomy ID will not change so
 
 ## Changelog
 
+### v0.10.8
+  * Add `getNames` option for `getTaxonomy` to return taxon IDs rather than taxon names
+  * Deal with `with_mock` deprecation in test code and `pkgdown` changes
+
+### v0.10.7 
+  * Store `nodes` table's `parent` column as INT instead of REAL
+
+### v0.10.6
+  * Fix test for error message that was variable across platforms
+
 ### v0.10.5
   * Catch 404 errors and report as errors
   * Add resume argument to download functions
