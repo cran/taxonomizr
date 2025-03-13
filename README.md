@@ -1,7 +1,7 @@
 # Convert accession numbers to taxonomy
 
 [![codecov](https://codecov.io/gh/sherrillmix/taxonomizr/branch/master/graph/badge.svg)](https://app.codecov.io/gh/sherrillmix/taxonomizr)
-[![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/taxonomizr)](https://cran.r-project.org/package=taxonomizr)
+[![CRAN_Status_Badge](https://www.r-pkg.org/badges/version/taxonomizr)](https://cran.r-project.org/package=taxonomizr)
 
 ## Introduction
 
@@ -669,6 +669,9 @@ If I understand things correctly, then the actual taxonomy ID will not change so
 
 
 ## Changelog
+
+### v0.11.1
+  * Change superkingdom to domain in default taxonomic levels to match [NCBI changes](https://ncbiinsights.ncbi.nlm.nih.gov/2024/06/04/changes-ncbi-taxonomy-classifications/). 
 
 ### v0.10.8
   * Add `getNames` option for `getTaxonomy` to return taxon IDs rather than taxon names
